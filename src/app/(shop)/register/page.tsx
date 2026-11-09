@@ -1,14 +1,26 @@
 import Link from "next/link";
 import { AuthForm } from "@/components/AuthForm";
 import { zh } from "@/i18n/zh";
+import { normalizeEmail } from "@/lib/email";
 
 function safeNext(next?: string) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/account";
   return next;
 }
 
-export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const { next } = await searchParams;
+function prefillEmail(value?: string) {
+  if (!value) return "";
+  const email = normalizeEmail(value);
+  if (!email || email.length > 254) return "";
+  return email;
+}
+
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; email?: string }>;
+}) {
+  const { next, email } = await searchParams;
   const dest = safeNext(next);
   return (
     <div className="auth-grid">
@@ -23,7 +35,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         </ul>
       </div>
       <div>
-        <AuthForm mode="register" next={dest} />
+        <AuthForm mode="register" next={dest} initialEmail={prefillEmail(email)} />
         <p className="muted" style={{ textAlign: "center", marginTop: "1rem" }}>
           <Link href={`/login?next=${encodeURIComponent(dest)}`}>{zh.auth.hasAccount}</Link>
         </p>

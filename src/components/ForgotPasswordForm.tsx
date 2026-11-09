@@ -1,10 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { zh } from "@/i18n/zh";
+import { normalizeEmail } from "@/lib/email";
 
-export function ForgotPasswordForm({ loginHref }: { loginHref: string }) {
+const REDIRECT_DELAY_MS = 1400;
+
+function registerHref(email: string, next: string) {
+  const params = new URLSearchParams();
+  params.set("email", email);
+  if (next.startsWith("/") && !next.startsWith("//")) params.set("next", next);
+  return `/register?${params.toString()}`;
+}
+
+export function ForgotPasswordForm({ loginHref, next }: { loginHref: string; next: string }) {
+  const router = useRouter();
+  const redirectTimer = useRef<number | null>(null);
   const [step, setStep] = useState<"request" | "confirm" | "done">("request");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -12,11 +25,20 @@ export function ForgotPasswordForm({ loginHref }: { loginHref: string }) {
   const [info, setInfo] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current !== null) window.clearTimeout(redirectTimer.current);
+    };
+  }, []);
 
   async function sendCode(e?: React.FormEvent) {
     e?.preventDefault();
+    if (redirecting) return;
     setLoading(true);
     setError("");
+    setInfo("");
     const res = await fetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -25,11 +47,26 @@ export function ForgotPasswordForm({ loginHref }: { loginHref: string }) {
     const data = await res.json().catch(() => ({}));
     setLoading(false);
     if (!res.ok) {
-      setError(data.error || zh.auth.rateLimited);
+      setError(typeof data.error === "string" && data.error ? data.error : zh.auth.sendFailed);
       return;
     }
-    setInfo(data.message || zh.auth.codeSent);
-    setStep("confirm");
+    if (data.status === "not_registered") {
+      const target = normalizeEmail(typeof data.email === "string" && data.email ? data.email : email);
+      setInfo(typeof data.message === "string" && data.message ? data.message : zh.auth.notRegistered);
+      setRedirecting(true);
+      redirectTimer.current = window.setTimeout(() => {
+        router.push(registerHref(target, next));
+      }, REDIRECT_DELAY_MS);
+      return;
+    }
+    if (data.ok === true && data.status === "sent") {
+      const sentTo = normalizeEmail(typeof data.email === "string" && data.email ? data.email : email);
+      const fallback = zh.auth.codeSent.replaceAll("{email}", sentTo);
+      setInfo(typeof data.message === "string" && data.message ? data.message : fallback);
+      setStep("confirm");
+      return;
+    }
+    setError(zh.auth.sendFailed);
   }
 
   async function reset(e: React.FormEvent) {
@@ -75,6 +112,7 @@ export function ForgotPasswordForm({ loginHref }: { loginHref: string }) {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          disabled={redirecting}
         />
       </div>
       {step === "confirm" && (
@@ -105,13 +143,13 @@ export function ForgotPasswordForm({ loginHref }: { loginHref: string }) {
           </div>
         </>
       )}
-      {info && step === "confirm" && <div className="alert alert-info">{info}</div>}
+      {info && <div className="alert alert-info">{info}</div>}
       {error && (
         <div className="alert" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
           {error}
         </div>
       )}
-      <button className="btn btn-primary" disabled={loading} type="submit">
+      <button className="btn btn-primary" disabled={loading || redirecting} type="submit">
         {loading ? zh.common.loading : step === "request" ? zh.auth.sendCode : zh.auth.resetAction}
       </button>
       {step === "confirm" && (

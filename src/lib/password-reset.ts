@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { zh } from "@/i18n/zh";
 import { findUserByEmail, hashPassword, verifyPassword } from "./auth";
 import { prisma } from "./db";
+import { normalizeEmail } from "./email";
 import { MailConfigError, sendPasswordResetEmail } from "./mail";
 
 const CODE_TTL_MS = 15 * 60 * 1000;
@@ -12,13 +13,21 @@ const HOUR_MS = 60 * 60 * 1000;
 const MAX_PER_HOUR = 5;
 
 export const resetMessages = {
-  sent: zh.auth.codeSent,
+  sent: (email: string) => zh.auth.codeSent.replaceAll("{email}", email),
+  notRegistered: zh.auth.notRegistered,
+  sendFailed: zh.auth.sendFailed,
   rateLimited: zh.auth.rateLimited,
   invalidCode: zh.auth.invalidCode,
   resetDone: zh.auth.resetDone,
   passwordRequired: zh.auth.passwordRequired,
   emailInvalid: zh.auth.emailInvalid,
 } as const;
+
+export type PasswordResetRequestResult =
+  | { status: "sent"; email: string }
+  | { status: "not_registered"; email: string }
+  | { status: "rate_limited" }
+  | { status: "send_failed" };
 
 type Db = Prisma.TransactionClient;
 
@@ -27,10 +36,6 @@ let dummyHash: Promise<string> | null = null;
 function dummyCompare(code: string) {
   dummyHash ??= hashPassword("000000");
   return dummyHash.then((hash) => verifyPassword(code, hash));
-}
-
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
 }
 
 async function bucketLimited(db: Db, bucket: string, now: number) {
@@ -44,13 +49,17 @@ async function bucketLimited(db: Db, bucket: string, now: number) {
   return hour >= MAX_PER_HOUR;
 }
 
-export async function requestPasswordReset(input: { email: string; ip: string }): Promise<"sent" | "rate_limited"> {
+export async function requestPasswordReset(input: {
+  email: string;
+  ip: string;
+}): Promise<PasswordResetRequestResult> {
   const email = normalizeEmail(input.email);
   const ip = input.ip.trim().slice(0, 64) || "unknown";
   const now = Date.now();
   const emailBucket = `email:${email}`;
   const ipBucket = `ip:${ip}`;
 
+  // Count the attempt before the lookup so unknown addresses still spend the per-IP budget.
   const limited = await prisma.$transaction(async (tx) => {
     await tx.passwordResetSend.deleteMany({
       where: { createdAt: { lt: new Date(now - HOUR_MS) } },
@@ -63,13 +72,13 @@ export async function requestPasswordReset(input: { email: string; ip: string })
     });
     return false;
   });
-  if (limited) return "rate_limited";
+  if (limited) return { status: "rate_limited" };
+
+  const user = await findUserByEmail(email);
+  if (!user) return { status: "not_registered", email };
 
   const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
   const codeHash = await hashPassword(code);
-  const user = await findUserByEmail(email);
-  if (!user) return "sent";
-
   const expiresAt = new Date(now + CODE_TTL_MS);
   await prisma.passwordResetCode.upsert({
     where: { userId: user.id },
@@ -89,8 +98,9 @@ export async function requestPasswordReset(input: { email: string; ip: string })
         `[aisubscr mail] password reset send failed to=${user.email} (${reason}). Console fallback was not used.`,
       );
     }
+    return { status: "send_failed" };
   }
-  return "sent";
+  return { status: "sent", email: user.email };
 }
 
 export async function resetPassword(input: {

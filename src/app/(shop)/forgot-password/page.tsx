@@ -28,7 +28,7 @@ export default async function ForgotPasswordPage({
         </ul>
       </div>
       <div>
-        <ForgotPasswordForm loginHref={loginHref} />
+        <ForgotPasswordForm loginHref={loginHref} next={dest} />
         <p className="muted" style={{ textAlign: "center", marginTop: "1rem" }}>
           <Link href={loginHref}>{zh.auth.backToLogin}</Link>
         </p>
