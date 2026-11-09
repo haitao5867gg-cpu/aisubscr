@@ -4,59 +4,118 @@ import { prisma } from "@/lib/db";
 import { formatRmb } from "@/lib/money";
 import { zh } from "@/i18n/zh";
 import { CheckoutButton } from "@/components/CheckoutButton";
+import { CartLineControls } from "@/components/CartLineControls";
 
 export const dynamic = "force-dynamic";
 
 export default async function CartPage() {
   const session = await getSession();
   const cart = session.cart || [];
-  if (!cart.length) {
-    return (
-      <div>
-        <h1 className="page-title">{zh.cart.title}</h1>
-        <p className="page-desc">{zh.cart.empty}</p>
-        <Link href="/products" className="btn btn-primary">
-          {zh.nav.products}
-        </Link>
-      </div>
-    );
-  }
-  const products = await prisma.product.findMany({
-    where: { id: { in: cart.map((c) => c.productId) }, active: true },
-  });
-  const map = new Map(products.map((p) => [p.id, p]));
+  const products = cart.length
+    ? await prisma.product.findMany({
+        where: { id: { in: cart.map((item) => item.productId) }, active: true },
+      })
+    : [];
+  const map = new Map(products.map((product) => [product.id, product]));
   const items = cart
-    .map((c) => {
-      const p = map.get(c.productId);
-      if (!p) return null;
-      return { product: p, quantity: c.quantity, line: p.priceCents * c.quantity };
+    .map((item) => {
+      const product = map.get(item.productId);
+      if (!product) return null;
+      return { product, quantity: item.quantity, line: product.priceCents * item.quantity };
     })
-    .filter(Boolean) as { product: (typeof products)[0]; quantity: number; line: number }[];
-  const total = items.reduce((s, i) => s + i.line, 0);
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const total = items.reduce((sum, item) => sum + item.line, 0);
+  const loggedIn = Boolean(session.isLoggedIn && session.userId);
+
+  const steps = [
+    { label: zh.shop.stepCart, state: items.length ? "done" : "current" },
+    { label: zh.shop.stepAccount, state: !items.length ? "" : loggedIn ? "done" : "current" },
+    { label: zh.shop.stepPlace, state: items.length && loggedIn ? "current" : "" },
+  ];
 
   return (
-    <div className="stack">
-      <h1 className="page-title">{zh.cart.title}</h1>
-      {!session.isLoggedIn && (
-        <div className="alert alert-info">
-          结算前请先 <Link href="/login">登录</Link> 或 <Link href="/register">注册</Link>。
+    <div>
+      <p className="eyebrow">{zh.nav.cart}</p>
+      <h1 className="page-title">{zh.shop.checkoutTitle}</h1>
+      <ol className="checkout-steps">
+        {steps.map((step, index) => (
+          <li key={step.label} className={step.state}>
+            {index + 1}. {step.label}
+          </li>
+        ))}
+      </ol>
+
+      {!items.length ? (
+        <div className="card stack" style={{ padding: "1.5rem" }}>
+          <p style={{ margin: 0 }}>{zh.cart.empty}</p>
+          <Link href="/products" className="btn btn-primary">
+            {zh.shop.emptyCta}
+          </Link>
         </div>
-      )}
-      {items.map((i) => (
-        <div key={i.product.id} className="card row" style={{ padding: "1rem", justifyContent: "space-between" }}>
-          <div>
-            <strong>{i.product.name}</strong>
-            <div className="muted">
-              {formatRmb(i.product.priceCents)} × {i.quantity}
+      ) : (
+        <div className="checkout-grid">
+          <div className="stack">
+            {items.map((item) => (
+              <div key={item.product.id} className="card line-item">
+                <div>
+                  <strong>{item.product.name}</strong>
+                  <div className="muted" style={{ fontSize: "0.9rem" }}>
+                    {formatRmb(item.product.priceCents)}
+                    {item.product.isSubscription ? ` ${zh.shop.perMonth}` : ""} · {formatRmb(item.line)}
+                  </div>
+                  <CartLineControls productId={item.product.id} quantity={item.quantity} />
+                </div>
+                <strong>{formatRmb(item.line)}</strong>
+              </div>
+            ))}
+            <div className="card" style={{ padding: "1rem 1.1rem" }}>
+              <strong>{zh.shop.stepAccount}</strong>
+              {loggedIn ? (
+                <p className="muted" style={{ marginBottom: 0 }}>
+                  {zh.shop.accountReady}：{session.email}
+                </p>
+              ) : (
+                <>
+                  <p className="muted">{zh.shop.loginNeeded}</p>
+                  <div className="row">
+                    <Link href="/login?next=/cart" className="btn btn-primary">
+                      {zh.shop.loginToPlace}
+                    </Link>
+                    <Link href="/register?next=/cart" className="btn btn-secondary">
+                      {zh.nav.register}
+                    </Link>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-          <strong>{formatRmb(i.line)}</strong>
+          <aside className="card summary-card stack">
+            <strong>{zh.shop.summary}</strong>
+            {items.map((item) => (
+              <div key={item.product.id} className="money-row">
+                <span className="muted">
+                  {item.product.name} × {item.quantity}
+                </span>
+                <span>{formatRmb(item.line)}</span>
+              </div>
+            ))}
+            <div className="money-row" style={{ borderTop: "1px solid var(--border-soft)", paddingTop: "0.75rem" }}>
+              <span>{zh.shop.payable}</span>
+              <strong className="plan-price" style={{ fontSize: "1.45rem" }}>
+                {formatRmb(total)}
+              </strong>
+            </div>
+            <div className="alert alert-mock">{zh.payment.mockNote}</div>
+            {loggedIn ? (
+              <CheckoutButton label={zh.shop.placeOrder} />
+            ) : (
+              <Link href="/login?next=/cart" className="btn btn-primary">
+                {zh.shop.loginToPlace}
+              </Link>
+            )}
+          </aside>
         </div>
-      ))}
-      <div className="card row" style={{ padding: "1.25rem", justifyContent: "space-between" }}>
-        <strong>合计 {formatRmb(total)}</strong>
-        {session.isLoggedIn ? <CheckoutButton /> : <Link href="/login" className="btn btn-primary">去登录</Link>}
-      </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TicketReplyForm } from "@/components/TicketReplyForm";
+import { AccountFrame } from "@/components/AccountFrame";
 import { zh } from "@/i18n/zh";
 
 export const dynamic = "force-dynamic";
@@ -21,30 +23,38 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   if (!ticket) notFound();
 
   return (
-    <div className="stack" style={{ maxWidth: 720 }}>
+    <AccountFrame current="tickets">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h1 className="page-title" style={{ margin: 0 }}>
-          {ticket.subject}
-        </h1>
+        <div>
+          <p className="eyebrow">{zh.ticket.title}</p>
+          <h1 className="page-title" style={{ margin: 0 }}>
+            {ticket.subject}
+          </h1>
+        </div>
         <StatusBadge status={ticket.status} kind="ticket" />
       </div>
-      <div className="muted">订单 {ticket.order.orderNo}</div>
+      <div className="muted">
+        订单{" "}
+        <Link href={`/orders/${ticket.orderId}`} style={{ color: "var(--primary)" }}>
+          {ticket.order.orderNo}
+        </Link>
+      </div>
       <div className="stack">
-        {ticket.replies.map((r) => (
-          <div key={r.id} className="card" style={{ padding: "1rem" }}>
+        {ticket.replies.map((reply) => (
+          <div key={reply.id} className="card" style={{ padding: "1rem" }}>
             <div className="row" style={{ marginBottom: "0.35rem" }}>
-              <span className="badge badge-example">{r.isStaff ? "客服" : "我"}</span>
+              <span className="badge badge-example">{reply.isStaff ? "客服" : "我"}</span>
               <span className="muted" style={{ fontSize: "0.8rem" }}>
-                {r.createdAt.toISOString()}
+                {reply.createdAt.toISOString().replace("T", " ").slice(0, 19)}
               </span>
             </div>
-            <div style={{ whiteSpace: "pre-wrap" }}>{r.body}</div>
+            <div style={{ whiteSpace: "pre-wrap" }}>{reply.body}</div>
           </div>
         ))}
       </div>
       <div className="card" style={{ padding: "1.1rem" }}>
         <TicketReplyForm ticketId={ticket.id} />
       </div>
-    </div>
+    </AccountFrame>
   );
 }

@@ -1,27 +1,41 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { formatRmb } from "@/lib/money";
 import { zh } from "@/i18n/zh";
-import { AddToCartButton } from "@/components/AddToCartButton";
+import { getSession } from "@/lib/session";
+import { PurchasePanel } from "@/components/PurchasePanel";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const product = await prisma.product.findFirst({ where: { id, active: true } });
+  const [product, session] = await Promise.all([
+    prisma.product.findFirst({ where: { id, active: true } }),
+    getSession(),
+  ]);
   if (!product) notFound();
 
   return (
-    <div className="card" style={{ padding: "1.75rem", maxWidth: 720 }}>
-      <div className="row" style={{ marginBottom: "0.75rem" }}>
-        <span className="badge badge-example">{zh.common.exampleData}</span>
-        {product.isSubscription && <span className="badge badge-mock">{zh.product.subscription}</span>}
-      </div>
-      <h1 className="page-title">{product.name}</h1>
-      <p style={{ whiteSpace: "pre-wrap" }}>{product.description}</p>
-      <div className="row" style={{ marginTop: "1.25rem", justifyContent: "space-between" }}>
-        <strong style={{ fontSize: "1.5rem", color: "var(--primary)" }}>{formatRmb(product.priceCents)}</strong>
-        <AddToCartButton productId={product.id} />
+    <div className="detail-grid">
+      <PurchasePanel
+        productId={product.id}
+        priceCents={product.priceCents}
+        isSubscription={product.isSubscription}
+        loggedIn={Boolean(session.isLoggedIn)}
+      />
+      <div className="detail-main stack">
+        <div>
+          <p className="eyebrow">{zh.product.detail}</p>
+          <h1 className="page-title">{product.name}</h1>
+          <p style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>{product.description}</p>
+        </div>
+        <section className="card" style={{ padding: "1.15rem 1.25rem" }}>
+          <h2 style={{ margin: "0 0 0.4rem", fontSize: "1.05rem" }}>{zh.shop.includes}</h2>
+          <ul className="plain-list">
+            <li>{product.isSubscription ? zh.shop.periodHint : zh.shop.qtyHint}</li>
+            <li>{product.isSubscription ? zh.shop.renewHint : zh.shop.renewSkip}</li>
+            <li>{zh.payment.mockNote}</li>
+          </ul>
+        </section>
       </div>
     </div>
   );

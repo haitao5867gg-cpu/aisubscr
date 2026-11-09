@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { zh } from "@/i18n/zh";
 
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
+export function AuthForm({ mode, next = "/" }: { mode: "login" | "register"; next?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,12 +27,13 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       setError(data.error || "失败");
       return;
     }
-    router.push("/");
+    const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+    router.push(dest);
     router.refresh();
   }
 
   return (
-    <form onSubmit={onSubmit} className="card stack" style={{ padding: "1.5rem", maxWidth: 420, margin: "0 auto" }}>
+    <form onSubmit={onSubmit} className="card stack auth-card">
       <h1 className="page-title">{mode === "login" ? zh.auth.loginTitle : zh.auth.registerTitle}</h1>
       {mode === "register" && (
         <div>

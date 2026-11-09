@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { zh } from "@/i18n/zh";
 
 export function PayPanel({ orderId }: { orderId: string }) {
-  const router = useRouter();
   const [method, setMethod] = useState<"WECHAT" | "ALIPAY" | "MOCK">("WECHAT");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -32,18 +30,21 @@ export function PayPanel({ orderId }: { orderId: string }) {
     <div className="card stack" style={{ padding: "1.25rem" }}>
       <h2 style={{ margin: 0, fontSize: "1.1rem" }}>{zh.payment.title}</h2>
       <div className="alert alert-mock">{zh.payment.mockNote}</div>
-      <label className="row">
-        <input type="radio" checked={method === "WECHAT"} onChange={() => setMethod("WECHAT")} />
-        {zh.payment.wechat} <span className="badge badge-mock">{zh.common.mockPay}</span>
-      </label>
-      <label className="row">
-        <input type="radio" checked={method === "ALIPAY"} onChange={() => setMethod("ALIPAY")} />
-        {zh.payment.alipay} <span className="badge badge-mock">{zh.common.mockPay}</span>
-      </label>
-      <label className="row">
-        <input type="radio" checked={method === "MOCK"} onChange={() => setMethod("MOCK")} />
-        {zh.payment.mock}
-      </label>
+      {(
+        [
+          ["WECHAT", zh.payment.wechat],
+          ["ALIPAY", zh.payment.alipay],
+          ["MOCK", zh.payment.mock],
+        ] as const
+      ).map(([value, label]) => (
+        <label key={value} className="pay-option">
+          <span className="row" style={{ margin: 0 }}>
+            <input type="radio" checked={method === value} onChange={() => setMethod(value)} />
+            {label}
+          </span>
+          <span className="badge badge-mock">{zh.common.mockPay}</span>
+        </label>
+      ))}
       {error && <div className="alert" style={{ color: "var(--danger)" }}>{error}</div>}
       <button className="btn btn-primary" disabled={busy} onClick={pay}>
         {busy ? zh.common.loading : zh.order.pay}
