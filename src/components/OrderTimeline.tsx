@@ -8,37 +8,27 @@ export function OrderTimeline({ status }: { status: string }) {
     { key: "completed", label: zh.order.timeline.completed },
   ];
 
-  // index of current step
-  let current = 1; // PENDING
+  let current = 1;
   if (status === "PAID") current = 2;
   if (status === "COMPLETED") current = 3;
   if (status === "REFUNDED") current = 2;
 
   return (
-    <div className="card" style={{ padding: "1.1rem 1rem" }}>
-      <div className="timeline">
-        {steps.map((s, i) => {
+    <div className="card" style={{ padding: "1.15rem 1.2rem" }}>
+      <ol className="v-timeline">
+        {steps.map((step, index) => {
           let cls = "";
-          if (status === "COMPLETED") cls = "done";
-          else if (i < current) cls = "done";
-          else if (i === current) cls = "current";
+          if (status === "COMPLETED" || index < current) cls = "done";
+          else if (index === current) cls = "current";
           return (
-            <div key={s.key} className={`timeline-step ${cls}`}>
-              {s.label}
-            </div>
+            <li key={step.key} className={cls}>
+              {step.label}
+            </li>
           );
         })}
-      </div>
+      </ol>
       {status === "REFUNDED" && (
-        <div
-          className="alert"
-          style={{
-            marginTop: "0.75rem",
-            background: "var(--danger-soft)",
-            color: "var(--danger)",
-            borderColor: "transparent",
-          }}
-        >
+        <div className="alert alert-warn" style={{ marginTop: "0.85rem" }}>
           当前状态：{zh.order.status.REFUNDED}
         </div>
       )}

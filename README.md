@@ -62,12 +62,12 @@ src/app/globals.css  主题 CSS 变量（便于后续换肤）
 
 - CSS 变量集中在 `src/app/globals.css`（canvas / surface / primary / success 等 light+dark token）
 - 页头提供 **系统 / 浅色 / 深色** 切换与 **中文 / English** 语言开关（locale 存 localStorage，文案字典在 `src/i18n/`）
-- 视觉参考 modelwool 的轻仪表盘风格；布局参考订单页信息结构（非抄袭文案）
+- 页面结构按数字商品商城来排：方案、结算、个人中心、订单与售后。颜色、圆角、字体、阴影和按钮沿用现有 token。
 
 ## 主题与后续换肤
 
-样式集中在 `src/app/globals.css` 的 CSS 变量（`--primary`、`--background`、`--radius` 等）。  
-后续可按 [modelwool.com](https://modelwool.com/) 视觉规范与订单页布局规范整体替换 token，无需改业务逻辑。
+样式 token 集中在 `src/app/globals.css`（`--primary`、`--canvas`、`--radius`、`--shadow-soft` 等）。  
+换肤改这些变量即可。页面布局是商城自己的结构，不要再套用资讯站或第三方订单站的版式。
 
 ## 脚本
 

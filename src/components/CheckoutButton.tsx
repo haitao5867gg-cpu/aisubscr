@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { zh } from "@/i18n/zh";
 
-export function CheckoutButton() {
+export function CheckoutButton({ label }: { label?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -28,7 +28,7 @@ export function CheckoutButton() {
           router.refresh();
         }}
       >
-        {busy ? zh.common.loading : zh.cart.checkout}
+        {busy ? zh.common.loading : label || zh.cart.checkout}
       </button>
     </div>
   );
