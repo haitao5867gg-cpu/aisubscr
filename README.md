@@ -11,6 +11,7 @@
 - Prisma + SQLite
 - iron-session（Cookie 会话）
 - bcryptjs（密码哈希）
+- 可插拔邮件（nodemailer SMTP，或未配置时的控制台日志）
 - 可插拔支付接口（当前仅 MOCK 模拟支付）
 
 ## 快速开始
@@ -31,6 +32,7 @@ npm run dev            # http://0.0.0.0:3000
 | 模块 | 说明 |
 |------|------|
 | 注册 / 登录 | 邮箱 + 密码，密码哈希存储，会话 Cookie |
+| 忘记密码 | 邮箱收取 6 位验证码后设置新密码。新密码没有长度或复杂度限制 |
 | 商品 | 列表 / 详情，人民币标价（¥） |
 | 购物车 / 下单 | 会话购物车 → 生成订单 |
 | 支付 | WeChat / Alipay 选项走 **MOCK 模拟支付** |
@@ -44,11 +46,12 @@ npm run dev            # http://0.0.0.0:3000
 ## 目录结构（简要）
 
 ```
-prisma/          schema + seed
+prisma/          schema、baseline 迁移、密码重置迁移、seed
+deploy/          已脱敏的生产笔记、nginx / systemd、备份脚本
 src/app/         App Router 页面与 API
 src/components/  UI 组件
-src/i18n/        文案（现仅 zh，可扩展 en）
-src/lib/         db / auth / session / payments
+src/i18n/        文案（zh 与 en）
+src/lib/         db / auth / session / mail / payments
 src/app/globals.css  主题 CSS 变量（便于后续换肤）
 ```
 
@@ -57,6 +60,65 @@ src/app/globals.css  主题 CSS 变量（便于后续换肤）
 - **支付**：`src/lib/payments/` 为可插拔接口。微信 / 支付宝目前全部落到 `MOCK` 提供商，页面明确标注「模拟支付」，不会真实扣款。正式接入需商户凭证后再挂真实 Provider。
 - **商品 / 文章**：seed 写入的示例数据。
 - **客服邮箱 / 服务时间**：站点设置中的占位值（默认 `support@example.com`，`08:00–23:00`）。
+- **密码重置邮件**：默认 `MAIL_PROVIDER=console`（或未设置且 `SMTP_HOST` 为空）时，**不会发送真实邮件**。验证码写在服务器日志里，前缀 `AISUBSCR_MAIL_CONSOLE`。`MAIL_PROVIDER=smtp` 才走 SMTP。SMTP 发送或配置失败只记错误日志，**不会**改用控制台提供商补发。
+
+## 忘记密码
+
+登录页有「忘记密码?」，打开 `/forgot-password`。
+
+1. 提交注册邮箱。接口始终返回「如果该邮箱已注册，验证码已发送」，不能用来判断邮箱是否注册。未注册的邮箱不会发信，但同样计入发送频率。
+2. 验证码 6 位，只存 bcrypt 哈希，约 15 分钟过期。同一用户只有一条有效验证码，新的会替换旧的。连续输错 5 次后该验证码作废。
+3. 提交验证码和新密码。新密码按提交内容保存，不检查长度或复杂度；空密码会要求重新填写。
+4. 成功后删除验证码，并把 `User.sessionVersion` 加 1。iron-session 的登录态在 Cookie 里，其他设备上的旧 Cookie 在下次请求时因版本不一致而视为已退出。
+
+同一邮箱、同一 IP 发送间隔约 60 秒，并且每小时最多约 5 次。超过限制时返回「发送过于频繁，请稍后再试」（不区分邮箱是否注册）。IP 取 nginx 写入的 `X-Real-IP`。站点在 Cloudflare 后面时，把 `deploy/nginx-cloudflare-realip.conf` 包含进 TLS 的 server 块，`$remote_addr` 才会是访客地址；否则多个访客会共享同一个 Cloudflare 出口地址。
+
+## 环境变量
+
+见 `.env.example`。密码重置相关：
+
+| 变量 | 作用 |
+|------|------|
+| `MAIL_PROVIDER` | `console` 或 `smtp`。空则在设置了 `SMTP_HOST` 时用 smtp，否则 console |
+| `MAIL_FROM` | 发件人，smtp 必填 |
+| `SMTP_HOST` | 如 `smtp.mx.cloudflare.net`、`smtp.resend.com`、`smtp.gmail.com` |
+| `SMTP_PORT` | 默认 `587`；Cloudflare Email Sending 用 `465` |
+| `SMTP_SECURE` | `true` 为隐式 TLS（465）。不填时端口 465 视为 `true` |
+| `SMTP_USER` / `SMTP_PASS` | Cloudflare 用户名固定为 `api_token`，密码为 Email Sending: Edit 令牌 |
+
+Cloudflare Email Sending 尚未开通时保持 `MAIL_PROVIDER=console`。真实邮件不会发出。
+
+## 生产数据库升级
+
+当前生产库由 `prisma db push` 建成，里面有真实数据，且仓库原先没有迁移历史。本次加入两条迁移：
+
+- `20261109120000_baseline`：升级前的表结构
+- `20261109120500_password_reset`：给 `User` 增加 `sessionVersion`（`ALTER TABLE`，默认 0），并新建验证码表。不重建用户表，不删除已有行
+
+**不要**在生产运行 `npm run db:seed`、`npm run db:setup` 或 `npx prisma db seed`。seed 会重置管理员密码。
+
+已有生产库执行（先备份，再标记 baseline，再应用新迁移）：
+
+```bash
+cd /opt/aisubscr
+/usr/local/sbin/aisubscr-backup
+npx prisma migrate resolve --applied 20261109120000_baseline
+npx prisma migrate deploy
+npm run build
+systemctl restart aisubscr
+```
+
+`migrate resolve --applied` 只写入一条「baseline 已经应用」的记录，不改表、不改数据。`migrate resolve` 在这台库上只跑一次。之后的版本只跑 `npx prisma migrate deploy`。
+
+如果还没 resolve 就直接 `npx prisma migrate deploy`，Prisma 会因数据库非空而停止（P3005），不会改数据。
+
+全新空库（没有用过 `db push`）不需要 resolve：
+
+```bash
+npx prisma migrate deploy
+```
+
+本地演示仍可 `npm run db:setup`（`db push` + seed）。那条命令只适合空的本地库。
 
 ## 主题 / 深色模式
 
@@ -73,7 +135,8 @@ src/app/globals.css  主题 CSS 变量（便于后续换肤）
 
 - `npm run dev` — 开发服务器 `0.0.0.0:3000`
 - `npm run build` / `npm start` — 生产构建与启动
-- `npm run db:setup` — 推送 schema 并 seed
+- `npm run db:setup` — 本地推送 schema 并 seed（生产不要跑，会重置管理员密码）
+- `npx prisma migrate deploy` — 按 `prisma/migrations` 升级数据库（生产用，不含 seed）
 
 ## License
 

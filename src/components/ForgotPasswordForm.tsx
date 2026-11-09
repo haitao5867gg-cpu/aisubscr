@@ -1,0 +1,124 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { zh } from "@/i18n/zh";
+
+export function ForgotPasswordForm({ loginHref }: { loginHref: string }) {
+  const [step, setStep] = useState<"request" | "confirm" | "done">("request");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [info, setInfo] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function sendCode(e?: React.FormEvent) {
+    e?.preventDefault();
+    setLoading(true);
+    setError("");
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error || zh.auth.rateLimited);
+      return;
+    }
+    setInfo(data.message || zh.auth.codeSent);
+    setStep("confirm");
+  }
+
+  async function reset(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    const res = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      setError(data.error || zh.auth.invalidCode);
+      return;
+    }
+    setInfo(data.message || zh.auth.resetDone);
+    setStep("done");
+  }
+
+  if (step === "done") {
+    return (
+      <div className="card stack auth-card">
+        <h1 className="page-title">{zh.auth.forgotTitle}</h1>
+        <div className="alert alert-info">{info}</div>
+        <Link className="btn btn-primary" href={loginHref}>
+          {zh.auth.backToLogin}
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={step === "request" ? sendCode : reset} className="card stack auth-card">
+      <h1 className="page-title">{zh.auth.forgotTitle}</h1>
+      <div>
+        <label className="label">{zh.auth.email}</label>
+        <input
+          className="input"
+          type="email"
+          required
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
+      {step === "confirm" && (
+        <>
+          <div>
+            <label className="label">{zh.auth.code}</label>
+            <input
+              className="input"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              pattern="\d{6}"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">{zh.auth.newPassword}</label>
+            <input
+              className="input"
+              type="password"
+              required
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+        </>
+      )}
+      {info && step === "confirm" && <div className="alert alert-info">{info}</div>}
+      {error && (
+        <div className="alert" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
+          {error}
+        </div>
+      )}
+      <button className="btn btn-primary" disabled={loading} type="submit">
+        {loading ? zh.common.loading : step === "request" ? zh.auth.sendCode : zh.auth.resetAction}
+      </button>
+      {step === "confirm" && (
+        <button className="btn btn-ghost" disabled={loading} type="button" onClick={() => sendCode()}>
+          {zh.auth.resendCode}
+        </button>
+      )}
+    </form>
+  );
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zh } from "@/i18n/zh";
 
@@ -47,7 +48,21 @@ export function AuthForm({ mode, next = "/" }: { mode: "login" | "register"; nex
       </div>
       <div>
         <label className="label">{zh.auth.password}</label>
-        <input className="input" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+        <input
+          className="input"
+          type="password"
+          required
+          minLength={mode === "register" ? 6 : undefined}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        {mode === "login" && (
+          <p className="muted" style={{ textAlign: "right", margin: "0.45rem 0 0" }}>
+            <Link href={`/forgot-password?next=${encodeURIComponent(next.startsWith("/") && !next.startsWith("//") ? next : "/")}`}>
+              {zh.auth.forgotPassword}
+            </Link>
+          </p>
+        )}
       </div>
       {error && <div className="alert" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>{error}</div>}
       <button className="btn btn-primary" disabled={loading} type="submit">

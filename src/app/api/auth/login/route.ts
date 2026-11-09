@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     session.email = user.email;
     session.role = user.role;
     session.name = user.name || undefined;
+    session.sessionVersion = user.sessionVersion;
     session.isLoggedIn = true;
     if (!session.cart) session.cart = [];
     await session.save();
