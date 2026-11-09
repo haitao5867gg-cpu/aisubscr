@@ -1,0 +1,23 @@
+[Unit]
+Description=aisubscr Next.js production shop
+After=network.target
+
+[Service]
+Type=simple
+User=aisubscr
+Group=aisubscr
+WorkingDirectory=/opt/aisubscr
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+EnvironmentFile=/opt/aisubscr/.env
+ExecStart=/usr/bin/node /opt/aisubscr/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

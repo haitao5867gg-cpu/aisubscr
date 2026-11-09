@@ -8,16 +8,38 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String?
-  role         String   @default("USER") // USER | ADMIN
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  orders       Order[]
-  tickets      Ticket[]
-  ticketReplies TicketReply[]
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  name           String?
+  role           String   @default("USER") // USER | ADMIN
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  sessionVersion Int      @default(0) // bumped on password reset to invalidate iron-session cookies
+  orders         Order[]
+  tickets        Ticket[]
+  ticketReplies  TicketReply[]
+  passwordResetCode PasswordResetCode?
+}
+
+/// One active password-reset code per user. The code is stored hashed.
+model PasswordResetCode {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+/// Recent reset-code sends, keyed by email or IP, for rate limits.
+model PasswordResetSend {
+  id        String   @id @default(cuid())
+  bucket    String
+  createdAt DateTime @default(now())
+
+  @@index([bucket, createdAt])
 }
 
 model Product {
