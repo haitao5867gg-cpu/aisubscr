@@ -5,9 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zh } from "@/i18n/zh";
 
-export function AuthForm({ mode, next = "/" }: { mode: "login" | "register"; next?: string }) {
+export function AuthForm({
+  mode,
+  next = "/",
+  initialEmail = "",
+}: {
+  mode: "login" | "register";
+  next?: string;
+  initialEmail?: string;
+}) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
