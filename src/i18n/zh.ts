@@ -623,6 +623,7 @@ export const zh = {
     ticketMissing: "工单不存在",
     replyRequired: "请填写回复",
     rateLimited: "操作过于频繁，请稍后再试",
+    payloadTooLarge: "请求内容过大",
     attachmentInvalid: "截图地址无效",
     postInvalid: "请检查文章内容",
     mockPayPage: "请使用支付页面完成模拟支付",

@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { prepareOutbound } from "./headers";
 import type { Mailer } from "./types";
 
 export class MailConfigError extends Error {
@@ -45,12 +46,14 @@ export function createSmtpMailer(): Mailer {
   return {
     name: "smtp",
     async send(mail) {
+      const safe = prepareOutbound(mail);
+      if (!safe) throw new Error("refusing mail with an unsafe recipient or subject");
       await transporter.sendMail({
         from,
-        to: mail.to,
-        subject: mail.subject,
-        text: mail.text,
-        html: mail.html,
+        to: safe.to,
+        subject: safe.subject,
+        text: safe.text,
+        html: safe.html,
       });
     },
   };

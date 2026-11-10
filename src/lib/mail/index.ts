@@ -1,6 +1,7 @@
 import { en, zh } from "@/i18n";
 import { getT } from "@/i18n/server";
 import { consoleMailer } from "./console";
+import { prepareOutbound } from "./headers";
 import { createSmtpMailer, MailConfigError } from "./smtp";
 import type { Mailer, MailProviderName } from "./types";
 
@@ -33,7 +34,7 @@ function fill(template: string, code: string) {
 export async function sendPasswordResetEmail(to: string, code: string): Promise<void> {
   const mailer = getMailer();
   const t = await getT();
-  await mailer.send({
+  const mail = prepareOutbound({
     to,
     subject: t.mail.resetSubject,
     text: [
@@ -44,6 +45,8 @@ export async function sendPasswordResetEmail(to: string, code: string): Promise<
       en.mail.resetExpireEn,
     ].join("\n"),
   });
+  if (!mail) throw new Error("refusing mail with an unsafe recipient or subject");
+  await mailer.send(mail);
   if (mailer.name === "smtp") {
     console.info(`[aisubscr mail] sent password reset via smtp to=${to}`);
   }

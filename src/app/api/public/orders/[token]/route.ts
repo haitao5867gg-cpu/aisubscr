@@ -3,7 +3,6 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { prisma } from "@/lib/db";
 import { expireDueOrders } from "@/lib/order-expiry";
-import { customerReplies } from "@/lib/tickets";
 
 /** Public shareable order view by unguessable token */
 export async function GET(_: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -16,7 +15,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ token: str
       items: true,
       tickets: {
         orderBy: { createdAt: "desc" },
-        include: { replies: customerReplies },
+        select: { id: true, subject: true, status: true, createdAt: true },
       },
     },
   });
@@ -38,18 +37,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ token: str
       isRenewal: order.isRenewal,
       createdAt: order.createdAt,
       items: order.items,
-      tickets: order.tickets.map((t) => ({
-        id: t.id,
-        subject: t.subject,
-        status: t.status,
-        createdAt: t.createdAt,
-        replies: t.replies.map((r) => ({
-          id: r.id,
-          body: r.body,
-          isStaff: r.isStaff,
-          createdAt: r.createdAt,
-          attachments: r.attachments.map((item) => ({ id: item.id, url: item.url })),
-        })),
+      tickets: order.tickets.map((ticket) => ({
+        id: ticket.id,
+        subject: ticket.subject,
+        status: ticket.status,
+        createdAt: ticket.createdAt,
       })),
     },
   });

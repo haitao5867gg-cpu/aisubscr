@@ -52,9 +52,11 @@ export async function putToR2(cfg: R2Config, key: string, body: Buffer) {
  * Store a WebP that is already validated. Uses R2 when every R2 variable is set,
  * and `uploadsRoot()` otherwise. The returned URL is what product and contact pages render.
  * The key is `<folder>/<uuid>.webp` and is not rewritten, so the URL can be cached as immutable.
+ * Ticket screenshots are rejected here so they cannot be published on R2 or `/uploads`.
  */
 export async function storePublicWebp(key: string, body: Buffer, put: ObjectPut = putToR2) {
   assertStorageKey(key);
+  if (key.startsWith("tickets/")) throw new Error("ticket images are not public");
   const cfg = readR2Config();
   if (!cfg) {
     await writeLocal(key, body);
@@ -62,4 +64,16 @@ export async function storePublicWebp(key: string, body: Buffer, put: ObjectPut 
   }
   await put(cfg, key, body);
   return `${cfg.publicBaseUrl}/${key}`;
+}
+
+/**
+ * Ticket screenshots always stay on local disk, including when R2 is configured
+ * for product and QR images. The caller records the key and serves it through
+ * an authenticated route.
+ */
+export async function storeTicketWebp(key: string, body: Buffer) {
+  assertStorageKey(key);
+  if (!key.startsWith("tickets/")) throw new Error("bad storage key");
+  await writeLocal(key, body);
+  return key;
 }

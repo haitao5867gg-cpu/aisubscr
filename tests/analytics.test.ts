@@ -134,3 +134,37 @@ it("collects a beacon without returning the visitor address", async () => {
   expect(source).toContain("purgeAnalytics");
   expect(source).not.toMatch(/google-analytics|googletagmanager|plausible/i);
 });
+
+it("rejects a cross-site beacon, an oversized body, and a flooded IP", async () => {
+  const ip = nextIp();
+  const cross = await collect(jsonRequest("/api/analytics/collect", {
+    ip,
+    headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+    body: { path: "/help", referrer: "" },
+  }));
+  expect(cross.status).toBe(403);
+  expect(await prisma.pageView.count({ where: { path: "/from-evil" } })).toBe(0);
+
+  const huge = await collect(jsonRequest("/api/analytics/collect", {
+    ip,
+    body: { path: `/${"p".repeat(3000)}`, referrer: "https://news.example/a" },
+  }));
+  expect(huge.status).toBe(413);
+
+  const floodIp = nextIp();
+  for (let n = 0; n < 30; n += 1) {
+    const ok = await collect(jsonRequest("/api/analytics/collect", {
+      ip: floodIp,
+      headers: { "user-agent": `flood-${n}` },
+      body: { path: `/help-${n}`, referrer: "" },
+    }));
+    expect(ok.status).toBe(200);
+  }
+  const limited = await collect(jsonRequest("/api/analytics/collect", {
+    ip: floodIp,
+    body: { path: "/help-limited", referrer: "" },
+  }));
+  expect(limited.status).toBe(429);
+  expect(limited.headers.get("retry-after")).toBeTruthy();
+  expect(await prisma.pageView.findFirst({ where: { path: "/help-limited" } })).toBeNull();
+});

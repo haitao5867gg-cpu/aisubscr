@@ -4,8 +4,9 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { readMutationJson, TICKET_JSON_MAX } from "@/lib/request-guard";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
-import { TICKET_STATUSES } from "@/lib/tickets";
+import { TICKET_STATUSES, presentAttachment } from "@/lib/tickets";
 
 const schema = z.object({
   status: z.enum(TICKET_STATUSES).optional(),
@@ -35,7 +36,15 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
     },
   });
   if (!ticket) return NextResponse.json({ error: t.api.ticketMissing }, { status: 404 });
-  return NextResponse.json({ ticket });
+  return NextResponse.json({
+    ticket: {
+      ...ticket,
+      replies: ticket.replies.map((reply) => ({
+        ...reply,
+        attachments: reply.attachments.map((item) => presentAttachment(item)),
+      })),
+    },
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,7 +58,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     throw error;
   }
   const { id } = await params;
-  const parsed = schema.safeParse(await req.json().catch(() => null));
+  const body = await readMutationJson(req, TICKET_JSON_MAX, t.api.forbidden, t.api.payloadTooLarge);
+  if (!body.ok) return body.response;
+  const parsed = schema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: t.admin.invalidStatus }, { status: 400 });
   const ticket = await prisma.ticket.findUnique({ where: { id } });
   if (!ticket) return NextResponse.json({ error: t.api.ticketMissing }, { status: 404 });

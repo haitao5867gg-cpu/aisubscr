@@ -10,7 +10,7 @@ import { AccountFrame } from "@/components/AccountFrame";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { pageMeta } from "@/lib/seo";
-import { customerReplies } from "@/lib/tickets";
+import { customerReplies, presentAttachment } from "@/lib/tickets";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +61,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               </time>
             </div>
             <div style={{ whiteSpace: "pre-wrap" }}>{reply.body}</div>
-            <TicketImages items={reply.attachments} alt={zh.ticket.attachmentAlt} />
+            <TicketImages items={reply.attachments.map((item) => presentAttachment(item))} alt={zh.ticket.attachmentAlt} />
           </article>
         ))}
       </section>

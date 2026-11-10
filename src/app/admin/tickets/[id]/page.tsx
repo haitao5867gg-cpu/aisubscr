@@ -7,6 +7,7 @@ import { TicketReplyForm } from "@/components/TicketReplyForm";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { prisma } from "@/lib/db";
+import { presentAttachment } from "@/lib/tickets";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function AdminTicketPage({ params }: { params: Promise<{ id
               </time>
             </div>
             <div style={{ whiteSpace: "pre-wrap" }}>{reply.body}</div>
-            <TicketImages items={reply.attachments} alt={t.ticket.attachmentAlt} />
+            <TicketImages items={reply.attachments.map((item) => presentAttachment(item))} alt={t.ticket.attachmentAlt} />
           </article>
         ))}
       </section>

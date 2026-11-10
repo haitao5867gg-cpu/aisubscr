@@ -100,8 +100,9 @@ sudo bash scripts/deploy.sh --ref origin/main
 | `--ref <git-ref>` | 要发布的提交，默认 `HEAD` |
 | `--repo <path>` | git 检出目录，默认是脚本所在仓库 |
 | `--no-fetch` | 不执行 `git fetch` |
+| `--rollback` | 切回上一版并做健康检查。不构建、不迁移、不 seed |
 
-也可以用环境变量改路径：`RELEASES_DIR`、`CURRENT_LINK`、`SHARED_DIR`、`ENV_FILE`、`DB_FILE`、`UPLOADS_DIR`、`SERVICE`、`SERVICE_USER`（默认 `aisubscr`）、`HEALTH_URL`。
+也可以用环境变量改路径：`RELEASES_DIR`、`CURRENT_LINK`、`SHARED_DIR`、`ENV_FILE`、`DB_FILE`、`UPLOADS_DIR`、`SERVICE`、`SERVICE_USER`（默认 `aisubscr`）、`HEALTH_URL`、`KEEP_RELEASES`（默认 `5`）。
 
 脚本一启动就执行 `umask 022`。这台机器上 root 的 umask 是 `0077`，不改的话新目录是 `0700`、文件是 `0600`，服务用户读不到。构建和迁移都结束后、替换符号链接之前，脚本执行 `chown -RP "$SERVICE_USER:"` 把整个发布目录交给服务用户。`-P` 不跟随符号链接，共享的 `.env`、数据库和 `uploads/` 属主不变。回滚时先对上一版做同样的 `chown`，再把符号链接切回去并重启。否则 Next 写 `.next/cache` 会报 `EACCES`。账号必须已存在，名字只能是普通用户名。
 
@@ -117,9 +118,19 @@ The script sets `umask 022` itself because root's umask is `0077`. It chowns the
 6. `chown -RP` 把发布目录交给 `SERVICE_USER`。然后原子替换 `/opt/aisubscr-current`，写入 `release.env` 的 `GIT_COMMIT`，`systemctl restart`。
 7. 最多约 30 秒轮询 `GET /api/health`。`ok` 与 `db` 必须为 `true`，且 `commit` 等于这次的提交号。
 8. 健康检查失败：先 `chown` 上一版，再把符号链接和 `release.env` 改回去并重启。迁移本身不会自动回滚（只加列的迁移旧代码仍能读）。
-9. 成功后删掉更旧的发布目录，但留下当前和上一版。若某个旧目录里的 `public/uploads` 或数据库是真实文件而不是符号链接，脚本会留下它并打印原因。
+9. 成功后只保留最新的 `KEEP_RELEASES` 个发布目录，默认 5 个。当前这次和上一版永远不删，哪怕上一版已经不在这 5 个里面。若某个旧目录里的 `public/uploads` 或数据库是真实文件而不是符号链接，脚本会留下它并打印原因。上一版的路径写在 `/opt/aisubscr-shared/previous-release`。
+
+切回上一版：
+
+```bash
+sudo bash scripts/deploy.sh --rollback
+```
+
+脚本读 `previous-release`。文件不存在或已经失效时，改用发布目录里除当前以外最新的一个 40 位提交目录。它会 `chown` 那一版、替换符号链接、写入 `release.env`、重启，然后用那一版的提交号做健康检查。健康检查失败就切回刚才还在服务的那一版。这一步不跑 `npm ci`、不构建、不执行迁移，也不删除上传文件或数据库。迁移不会因为 `--rollback` 自动撤销。
 
 非 root 运行时用 `sudo -n systemctl`，需要免密 sudo。同一时间第二份 `deploy.sh` 会因为锁文件退出。
+
+In English: a successful deploy keeps the newest `KEEP_RELEASES` directories (default 5) and never deletes the current release or the previous target. `deploy.sh --rollback` switches to that previous release, restarts, and health-checks it. If the check fails, the symlink switches back. Rollback does not build, migrate, seed, or delete uploads.
 
 构建失败、迁移失败时，若服务曾被停下，脚本会把它拉起来并保持旧的符号链接。回滚路径里同样会先 `chown` 正在恢复的那一版。
 
@@ -135,17 +146,20 @@ UPLOADS_DIR=/opt/aisubscr-shared/uploads
 
 这和 `deploy.sh` 用来接符号链接的 `UPLOADS_DIR` 是同一个路径。应用在运行时读取，不需要为了改这个目录重新构建。
 
-路由拒绝 `..`、反斜杠、空字节、编码后的路径穿越，以及指向目录外的符号链接。只提供 `.webp`、`.png`、`.jpg`、`.jpeg`、`.gif`。`Content-Type` 按扩展名设置，并带 `X-Content-Type-Options: nosniff`。上传文件名是 `products/<uuid>.webp`、`contact-qr/<uuid>.webp` 或 `tickets/<uuid>.webp`（UUID，不是内容哈希），同一个 URL 不会改内容，因此缓存为：
+路由拒绝 `..`、反斜杠、空字节、编码后的路径穿越，以及指向目录外的符号链接。只提供 `.webp`、`.png`、`.jpg`、`.jpeg`、`.gif`。`Content-Type` 按扩展名设置，并带 `X-Content-Type-Options: nosniff`。商品图和客服二维码的文件名是 `products/<uuid>.webp` 或 `contact-qr/<uuid>.webp`（UUID，不是内容哈希），同一个 URL 不会改内容，因此缓存为：
 
 ```
 Cache-Control: public, max-age=31536000, immutable
 ```
 
-`/uploads/` 不经过中间件，避免被标成 `private, no-store`。
+`/uploads/` 不经过中间件，避免被标成 `private, no-store`。`tickets/` 不在这份公开缓存里。工单截图仍写在上传目录的 `tickets/<uuid>.webp`，但 `/uploads/tickets/...` 一律 404。页面使用 `/api/tickets/attachments/<id>`，要登录，并且是工单主人或已启用两步验证的管理员。预览还没挂到工单上的图用 `/api/tickets/uploads/<id>`，只有上传者本人能打开。这两种地址都是 `private, no-store`。
 
-可选：让 nginx 直接读共享目录，少一次 Node 转发。不写这段时，上面的路由仍然生效，现有 `/uploads/...` 地址不用改。服务单元的 `UMask=0077` 会把新文件写成 `0600`，属主是 `aisubscr`，Node 进程读得到，nginx 的用户默认读不到。要用别名，先给 nginx 用户读权限（例如 ACL）。
+可选：让 nginx 直接读共享目录，少一次 Node 转发。不写这段时，上面的路由仍然生效，商品图和二维码的 `/uploads/...` 地址不用改。如果写了别名，必须单独拒绝 `tickets/`，否则截图会绕过登录检查。服务单元的 `UMask=0077` 会把新文件写成 `0600`，属主是 `aisubscr`，Node 进程读得到，nginx 的用户默认读不到。要用别名，先给 nginx 用户读权限（例如 ACL）。
 
 ```nginx
+location ^~ /uploads/tickets/ {
+    return 404;
+}
 location /uploads/ {
     alias /opt/aisubscr-shared/uploads/;
     autoindex off;
@@ -154,7 +168,7 @@ location /uploads/ {
 }
 ```
 
-`next start` remembers the `public/` files that existed at process start. Images saved after that 404 until the next restart. The app rewrites `/uploads/...` to a route that streams from `UPLOADS_DIR` (default `public/uploads`) with traversal checks, image extensions only, a matching `Content-Type`, `nosniff`, and an immutable cache. Names are unique UUIDs. The nginx `alias` above is an optional faster path.
+`next start` remembers the `public/` files that existed at process start. Images saved after that 404 until the next restart. The app rewrites `/uploads/...` to a route that streams from `UPLOADS_DIR` (default `public/uploads`) with traversal checks, image extensions only, a matching `Content-Type`, `nosniff`, and an immutable cache. Product and QR names are unique UUIDs. Ticket screenshots stay on that disk but are not part of the public route; nginx must return 404 for `/uploads/tickets/` when it aliases the directory. The nginx `alias` above is an optional faster path for product and QR images.
 
 ## 不要做的事 / Do not
 

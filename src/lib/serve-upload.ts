@@ -5,12 +5,13 @@ import path from "node:path";
 import { uploadsRoot } from "./object-storage";
 
 /**
- * Product, QR, and ticket uploads are stored as `<folder>/<uuid>.webp`.
- * `randomUUID()` in the upload routes makes each URL unique, and the file is
- * not replaced later. That is a unique name, not a content hash, and it is
- * enough for a year-long immutable cache.
+ * Product and QR uploads are stored as `<folder>/<uuid>.webp`.
+ * `randomUUID()` makes each URL unique, and the file is not replaced later.
+ * That is a unique name, not a content hash, and it is enough for a year-long
+ * immutable cache. Ticket screenshots use a private cache on the authenticated route.
  */
 export const UPLOAD_CACHE_CONTROL = "public, max-age=31536000, immutable";
+export const TICKET_CACHE_CONTROL = "private, no-store";
 
 const CONTENT_TYPES: Record<string, string> = {
   gif: "image/gif",
@@ -75,10 +76,21 @@ export type OpenedUpload = {
   stream: ReadStream;
 };
 
-/** Open one image inside the uploads directory, or null if the URL is not safe. */
-export async function openUpload(segments: readonly string[]): Promise<OpenedUpload | null> {
+/**
+ * Open one image inside the uploads directory, or null if the URL is not safe.
+ * Public callers cannot read `tickets/`: those files are screenshots and are
+ * served only after an ownership or admin check.
+ */
+export async function openUpload(
+  segments: readonly string[],
+  options?: { audience?: "public" | "ticket" },
+): Promise<OpenedUpload | null> {
   const relative = relativeUploadPath(segments);
   if (!relative) return null;
+  const ticket = relative.startsWith("tickets/");
+  const audience = options?.audience ?? "public";
+  if (audience === "public" && ticket) return null;
+  if (audience === "ticket" && !ticket) return null;
   const root = uploadsRoot();
   if (root === path.parse(root).root) return null;
   let rootReal: string;

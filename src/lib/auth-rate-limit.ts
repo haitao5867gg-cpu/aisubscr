@@ -65,6 +65,16 @@ const LIMITS = {
   },
 } as const;
 
+/** Anonymous beacon. One bucket per IP so a rotating user-agent cannot mint visitors. */
+const IP_LIMITS = {
+  analyticsCollect: [
+    { windowMs: 60 * 1000, max: 30 },
+    { windowMs: HOUR_MS, max: 120 },
+  ],
+} as const;
+
+type IpAction = keyof typeof IP_LIMITS;
+
 type RateAction = keyof typeof LIMITS;
 
 export type RateLimitResult = { limited: false } | { limited: true; retryAfterSeconds: number };
@@ -159,4 +169,23 @@ export function consumeTicketReply(userId: string, ip: string) {
 
 export function consumeTicketUpload(userId: string, ip: string) {
   return inspect("ticketUpload", userId, ip, true);
+}
+
+async function inspectIp(action: IpAction, ip: string): Promise<RateLimitResult> {
+  const ipKey = bucket("ip", ip.trim().slice(0, 64) || "unknown");
+  const rules = IP_LIMITS[action];
+  const now = Date.now();
+  return prisma.$transaction(async (tx) => {
+    await tx.authRateEvent.deleteMany({
+      where: { createdAt: { lt: new Date(now - HOUR_MS) } },
+    });
+    const wait = await retryAfter(tx, action, ipKey, rules, now);
+    if (wait !== null) return { limited: true, retryAfterSeconds: wait };
+    await tx.authRateEvent.create({ data: { action, bucket: ipKey } });
+    return { limited: false };
+  });
+}
+
+export function consumeAnalyticsCollect(ip: string) {
+  return inspectIp("analyticsCollect", ip);
 }

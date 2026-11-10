@@ -1,5 +1,11 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect, request as playwrightRequest, test } from "@playwright/test";
+import { E2E_BASE_URL } from "./env";
+
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 let octet = 40;
 
@@ -72,4 +78,57 @@ test("a customer opens a ticket and cannot read someone else's", async ({ page }
   if (!process.env.CI) {
     await page.screenshot({ path: "/opt/cursor/artifacts/admin-analytics.png", fullPage: true });
   }
+});
+
+test("user B cannot fetch user A's ticket or screenshot", async ({ page }) => {
+  const email = `shot-${Date.now()}@example.com`;
+  await register(page, email);
+  const uploaded = await page.request.post("/api/uploads", {
+    multipart: {
+      purpose: "ticket",
+      file: { name: "shot.png", mimeType: "image/png", buffer: PNG },
+    },
+  });
+  expect(uploaded.status()).toBe(200);
+  const uploadBody = await uploaded.json();
+  expect(uploadBody.url).toMatch(/^\/api\/tickets\/uploads\//);
+
+  const created = await page.request.post("/api/tickets", {
+    data: {
+      subject: `截图只有本人能看 ${email}`,
+      category: "technical",
+      body: "这张图里有订单页面。",
+      attachments: [uploadBody.url],
+    },
+  });
+  expect(created.status()).toBe(200);
+  const { ticket } = await created.json();
+  const shot = ticket.replies[0].attachments[0].url as string;
+  expect(shot).toMatch(/^\/api\/tickets\/attachments\//);
+  expect(JSON.stringify(ticket)).not.toContain("/uploads/tickets/");
+
+  const own = await page.request.get(shot);
+  expect(own.status()).toBe(200);
+  expect(own.headers()["content-type"]).toContain("image/webp");
+  expect(own.headers()["cache-control"]).toContain("private");
+
+  const ticketUrl = `/tickets/${ticket.id}`;
+  await page.goto(ticketUrl);
+  await expect(page.getByRole("heading", { level: 1, name: ticket.subject })).toBeVisible();
+  const image = page.locator("img[alt='工单截图']");
+  await expect(image).toBeVisible();
+  expect(await image.getAttribute("src")).toBe(shot);
+
+  await page.getByRole("button", { name: "退出" }).click();
+  const anon = await playwrightRequest.newContext({ baseURL: E2E_BASE_URL });
+  expect((await anon.get(shot)).status()).toBe(401);
+  expect((await anon.get(`/api/tickets/${ticket.id}`)).status()).toBe(401);
+  await anon.dispose();
+
+  await page.setExtraHTTPHeaders({ "x-real-ip": `198.51.100.${(Date.now() % 200) + 20}` });
+  await register(page, `other-shot-${Date.now()}@example.com`);
+  expect((await page.request.get(shot)).status()).toBe(404);
+  expect((await page.request.get(`/api/tickets/${ticket.id}`)).status()).toBe(404);
+  await page.goto(ticketUrl);
+  await expect(page.getByRole("heading", { name: "页面不存在" })).toBeVisible();
 });
