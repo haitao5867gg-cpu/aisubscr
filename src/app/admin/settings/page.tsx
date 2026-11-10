@@ -29,6 +29,7 @@ export default async function AdminSettingsPage() {
           adminNotifyEmail: settings.adminNotifyEmail,
           notifyPaidOrders: settings.notifyPaidOrders,
           notifyNewTickets: settings.notifyNewTickets,
+          notifyLowStock: settings.notifyLowStock,
           qrImageUrl: settings.qrImageUrl || "",
           hasContactQr: Boolean(settings.qrImageUrl || (settings.qrImageData && settings.qrImageMime)),
         }}

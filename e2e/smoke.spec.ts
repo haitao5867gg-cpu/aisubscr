@@ -192,7 +192,7 @@ test("admin dashboard is staff-only", async ({ page }) => {
   await page.getByRole("button", { name: "登录" }).click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("heading", { name: "今日", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "近 7 日订单", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "近 7 日收入", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "最近订单", exact: true })).toBeVisible();
   await page.goto("/admin/coupons");
   await expect(page.getByRole("heading", { name: "优惠码", exact: true })).toBeVisible();

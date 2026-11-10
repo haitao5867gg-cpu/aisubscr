@@ -20,6 +20,7 @@ const fields = {
   active: z.boolean().optional(),
   imageUrl: imageUrl.nullable().optional(),
   stock: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  lowStockThreshold: z.number().int().min(0).max(1_000_000).optional(),
   sortOrder: z.number().int().min(-10_000).max(10_000).optional(),
 };
 
@@ -40,6 +41,7 @@ export function productCreateData(input: ProductCreateInput): Prisma.ProductCrea
     active: input.active ?? true,
     imageUrl: input.imageUrl ? input.imageUrl : null,
     stock: input.stock ?? null,
+    lowStockThreshold: input.lowStockThreshold ?? 5,
     sortOrder: input.sortOrder ?? 0,
   };
 }
@@ -53,6 +55,7 @@ export function productPatchData(input: ProductPatchInput): Prisma.ProductUpdate
   if (input.active !== undefined) data.active = input.active;
   if (input.imageUrl !== undefined) data.imageUrl = input.imageUrl ? input.imageUrl : null;
   if (input.stock !== undefined) data.stock = input.stock;
+  if (input.lowStockThreshold !== undefined) data.lowStockThreshold = input.lowStockThreshold;
   if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
   return data;
 }
@@ -66,6 +69,7 @@ export function productSnapshot(product: {
   isSubscription: boolean;
   active: boolean;
   stock: number | null;
+  lowStockThreshold: number;
   sortOrder: number;
 }) {
   return {
@@ -77,6 +81,7 @@ export function productSnapshot(product: {
     isSubscription: product.isSubscription,
     active: product.active,
     stock: product.stock,
+    lowStockThreshold: product.lowStockThreshold,
     sortOrder: product.sortOrder,
   };
 }

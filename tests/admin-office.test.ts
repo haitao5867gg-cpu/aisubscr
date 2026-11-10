@@ -70,7 +70,7 @@ it("rejects an invalid product and stores a valid one with stock and sort order"
   );
   expect(created.status).toBe(200);
   const { product } = await created.json();
-  expect(product).toMatchObject({ stock: 1, sortOrder: 4, imageUrl: "/images/plan.png" });
+  expect(product).toMatchObject({ stock: 1, sortOrder: 4, imageUrl: "/images/plan.png", lowStockThreshold: 5 });
 
   const remoteImage = await createProduct(
     jsonRequest("/api/admin/products", {

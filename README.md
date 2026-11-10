@@ -40,7 +40,7 @@ npm run dev            # http://0.0.0.0:3000
 | 订单分享 | `/order/<publicToken>` 公开状态页（不可猜测 UUID） |
 | 售后 | 用户对订单建工单，支持线程回复 |
 | 博客 | 文章列表 + 详情；后台可发布 |
-| 管理后台 | 商品、订单（手动退款/完成）、工单回复、文章、站点设置 |
+| 管理后台 | 商品、订单（手动退款/完成）、工单回复、文章、站点设置、收入与低库存概览 |
 | 站点设置 | 站点名、客服邮箱、服务时间、页脚文案 |
 
 ## 目录结构（简要）
@@ -155,6 +155,7 @@ Cloudflare Email Sending 尚未开通时保持 `MAIL_PROVIDER=console`。真实�
 - `20261109120500_password_reset`：给 `User` 增加 `sessionVersion`（`ALTER TABLE`，默认 0），并新建验证码表。不重建用户表，不删除已有行
 - `20261110120000_auth_rate_events`：新建 `AuthRateEvent`，供登录失败和注册频率限制。不改已有表
 - `20261110233000_admin_totp_uploads_indexes`：管理员 TOTP 列、恢复码表、客服二维码 URL、订单索引。不写种子数据
+- `20261112100000_low_stock_threshold`：商品增加 `lowStockThreshold`（默认 5），站点设置增加 `notifyLowStock`（默认开）。不改已有库存，不写种子数据
 
 **不要**在生产运行 `npm run db:seed`、`npm run db:setup` 或 `npx prisma db seed`。seed 会重置管理员密码。
 
@@ -169,7 +170,7 @@ npm run build
 systemctl restart aisubscr
 ```
 
-`migrate resolve --applied` 只写入一条「baseline 已经应用」的记录，不改表、不改数据。`migrate resolve` 在这台库上只跑一次。之后的版本只跑 `npx prisma migrate deploy`。
+`migrate resolve --applied` 只写入一条「baseline 已经应用」的记录，不改表、不改数据。`migrate resolve` 在这台库上只跑一次。之后的版本用 `scripts/deploy.sh`（见 `docs/DEPLOY.md`）。它只在有未应用的迁移时停服务，并只跑 `npx prisma migrate deploy`，不会 seed。
 
 如果还没 resolve 就直接 `npx prisma migrate deploy`，Prisma 会因数据库非空而停止（P3005），不会改数据。
 
@@ -226,6 +227,7 @@ npm run test:e2e  # 首页、/plans 跳转、404、未知邮箱去注册、注�
 - `npm run test:e2e` — Playwright 冒烟（需先 `npm run build`）
 - `npm run db:setup` — 本地推送 schema 并 seed（生产不要跑，会重置管理员密码）
 - `npx prisma migrate deploy` — 按 `prisma/migrations` 升级数据库（生产用，不含 seed）
+- `bash scripts/deploy.sh` — 零停机发布到 `/opt/aisubscr-releases/<sha>`，说明见 `docs/DEPLOY.md`。不 seed，不删除上传文件
 
 ## License
 

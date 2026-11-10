@@ -14,6 +14,7 @@ type ProductSeed = {
   active: boolean;
   imageUrl: string | null;
   stock: number | null;
+  lowStockThreshold: number;
   sortOrder: number;
 };
 
@@ -25,6 +26,7 @@ export function AdminProductForm({ product }: { product?: ProductSeed }) {
   const [description, setDescription] = useState(product?.description ?? "");
   const [priceYuan, setPriceYuan] = useState(product ? (product.priceCents / 100).toFixed(2) : "9.90");
   const [stock, setStock] = useState(product?.stock === null || product?.stock === undefined ? "" : String(product.stock));
+  const [lowStockThreshold, setLowStockThreshold] = useState(String(product?.lowStockThreshold ?? 5));
   const [sortOrder, setSortOrder] = useState(String(product?.sortOrder ?? 0));
   const [imageUrl, setImageUrl] = useState(product?.imageUrl ?? "");
   const [isSubscription, setIsSubscription] = useState(product?.isSubscription ?? false);
@@ -83,6 +85,11 @@ export function AdminProductForm({ product }: { product?: ProductSeed }) {
             return;
           }
         }
+        const thresholdValue = Number(lowStockThreshold);
+        if (!Number.isInteger(thresholdValue) || thresholdValue < 0) {
+          setError(zh.admin.invalidProduct);
+          return;
+        }
         setBusy(true);
         try {
           const payload = {
@@ -93,6 +100,7 @@ export function AdminProductForm({ product }: { product?: ProductSeed }) {
             active,
             imageUrl: image,
             stock: stockValue,
+            lowStockThreshold: thresholdValue,
             sortOrder: sort,
           };
           const res = await fetch(product ? `/api/admin/products/${product.id}` : "/api/admin/products", {
@@ -110,6 +118,7 @@ export function AdminProductForm({ product }: { product?: ProductSeed }) {
             setDescription("");
             setImageUrl("");
             setStock("");
+            setLowStockThreshold("5");
             setSortOrder("0");
             setIsSubscription(false);
             setActive(true);
@@ -140,6 +149,11 @@ export function AdminProductForm({ product }: { product?: ProductSeed }) {
         <div>
           <label className="label" htmlFor={field("stock")}>{zh.admin.stock}</label>
           <input id={field("stock")} className="input" inputMode="numeric" value={stock} placeholder={zh.admin.stockHint} onChange={(event) => setStock(event.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor={field("threshold")}>{zh.admin.lowStockThreshold}</label>
+          <input id={field("threshold")} className="input" inputMode="numeric" required value={lowStockThreshold} onChange={(event) => setLowStockThreshold(event.target.value)} />
+          <p className="muted" style={{ margin: "0.35rem 0 0" }}>{zh.admin.lowStockThresholdHint}</p>
         </div>
         <div>
           <label className="label" htmlFor={field("sort")}>{zh.admin.sortOrder}</label>

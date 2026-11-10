@@ -20,6 +20,7 @@ type Settings = {
   adminNotifyEmail: string;
   notifyPaidOrders: boolean;
   notifyNewTickets: boolean;
+  notifyLowStock: boolean;
   qrImageUrl: string;
   hasContactQr: boolean;
 };
@@ -87,6 +88,7 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
               adminNotifyEmail: form.adminNotifyEmail.trim(),
               notifyPaidOrders: form.notifyPaidOrders,
               notifyNewTickets: form.notifyNewTickets,
+              notifyLowStock: form.notifyLowStock,
               ...(clearQr ? { clearQr: true } : {}),
               ...(form.qrImageUrl && !clearQr ? { qrImageUrl: form.qrImageUrl } : {}),
             }),
@@ -159,6 +161,14 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
             onChange={(event) => setField("notifyNewTickets", event.target.checked)}
           />
           {t.admin.notifyNewTickets}
+        </label>
+        <label className="row" style={{ marginTop: "0.35rem" }}>
+          <input
+            type="checkbox"
+            checked={form.notifyLowStock}
+            onChange={(event) => setField("notifyLowStock", event.target.checked)}
+          />
+          {t.admin.notifyLowStock}
         </label>
       </div>
       <div>

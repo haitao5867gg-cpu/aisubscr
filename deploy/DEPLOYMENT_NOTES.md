@@ -27,6 +27,7 @@ Deployed 2026-11-09 (America/Los_Angeles).
 
 Maintenance:
   ssh -i /home/box/.ssh/aisubscr_ed25519 root@186.244.241.245
+  # Routine releases use scripts/deploy.sh. See docs/DEPLOY.md. Do not seed.
   systemctl restart aisubscr
   journalctl -u aisubscr --no-pager
   /usr/local/sbin/aisubscr-backup

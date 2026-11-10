@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { recordPaid } from "../analytics";
 import { prisma } from "../db";
-import { deliverAdminPaidOrder, deliverOrderPaid } from "../mail/notices";
+import { deliverAdminPaidOrder, deliverOrderPaid, lowStockAfterPayment, type LowStockLine } from "../mail/notices";
 import { expireOrderIfDue } from "../order-expiry";
 import { logApiError } from "../server-log";
 
@@ -40,10 +40,17 @@ async function notifyPaid(orderId: string) {
       totalCents: order.totalCents,
       items: order.items,
     });
+    let lowStock: LowStockLine[] = [];
+    try {
+      lowStock = await lowStockAfterPayment(order.id);
+    } catch (error) {
+      logApiError({ requestId: "order-paid", route: "mail:admin-low-stock", status: 500, error });
+    }
     await deliverAdminPaidOrder({
       email: order.user.email,
       orderNo: order.orderNo,
       totalCents: order.totalCents,
+      lowStock,
     });
     await recordPaid(order.id);
   } catch (error) {

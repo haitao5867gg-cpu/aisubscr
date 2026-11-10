@@ -23,6 +23,7 @@ export type SettingsRow = {
   adminNotifyEmail: string;
   notifyPaidOrders: boolean;
   notifyNewTickets: boolean;
+  notifyLowStock: boolean;
 };
 
 /** JSON shape for admin and public settings. Image bytes stay in the database. */
@@ -51,6 +52,7 @@ export function adminSettingsView(row: SettingsRow) {
     adminNotifyEmail: row.adminNotifyEmail,
     notifyPaidOrders: row.notifyPaidOrders,
     notifyNewTickets: row.notifyNewTickets,
+    notifyLowStock: row.notifyLowStock,
   };
 }
 

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { formatRmb } from "@/lib/money";
+import { isLowStock } from "@/lib/admin-stats";
 import { catalogOrderBy } from "@/lib/catalog";
 import { AdminProductForm } from "@/components/AdminProductForm";
 import { getDict } from "@/i18n";
@@ -22,6 +23,7 @@ export default async function AdminProductsPage() {
             <span className="muted">
               {formatRmb(product.priceCents)} · {product.active ? zh.admin.listed : zh.admin.unlisted}
               {product.stock === null ? "" : ` · ${zh.admin.stock} ${product.stock}`}
+              {isLowStock(product) ? ` · ${zh.admin.lowStock}` : ""}
               {` · ${zh.admin.sortOrder} ${product.sortOrder}`}
             </span>
           </summary>
