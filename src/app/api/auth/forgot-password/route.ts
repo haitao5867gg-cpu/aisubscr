@@ -4,8 +4,8 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { clientIp } from "@/lib/client-ip";
 import { normalizeEmail } from "@/lib/email";
-import { MailConfigError } from "@/lib/mail";
 import { requestPasswordReset, resetMessages } from "@/lib/password-reset";
+import { logApiError, requestIdFrom } from "@/lib/server-log";
 
 const schema = z.object({
   email: z.string().email(),
@@ -26,10 +26,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: messages.emailInvalid }, { status: 400 });
   }
 
+  const requestId = requestIdFrom(req.headers);
   try {
     const result = await requestPasswordReset({
       email: parsed.data.email,
       ip: clientIp(req.headers),
+      requestId,
     });
     if (result.status === "rate_limited") {
       return NextResponse.json({ error: messages.rateLimited }, { status: 429 });
@@ -51,12 +53,7 @@ export async function POST(req: NextRequest) {
       message: messages.sent(result.email),
     });
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "request failed";
-    if (error instanceof MailConfigError) {
-      console.error(`[aisubscr mail] ${reason}`);
-    } else {
-      console.error("[aisubscr] forgot-password failed", reason);
-    }
+    logApiError({ requestId, route: "/api/auth/forgot-password", status: 500, error });
     return NextResponse.json({ error: messages.sendFailed }, { status: 500 });
   }
 }

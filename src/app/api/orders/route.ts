@@ -4,6 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { createOrderFromItems } from "@/lib/orders";
+import { logApiError, requestIdFrom } from "@/lib/server-log";
 
 export async function GET() {
   const session = await getSession();
@@ -37,7 +38,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ order });
   } catch (e: unknown) {
     const code = e instanceof Error ? e.message : "";
-    const msg = code === "PRODUCT_NOT_FOUND" ? t.shop.productMissing : t.shop.orderFailed;
+    if (code !== "PRODUCT_NOT_FOUND" && code !== "EMPTY_CART") {
+      logApiError({ requestId: requestIdFrom(req.headers), route: "/api/orders", status: 400, error: e });
+    }
+    const msg = code === "PRODUCT_NOT_FOUND" ? t.shop.productMissing : code === "EMPTY_CART" ? t.cart.empty : t.shop.orderFailed;
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

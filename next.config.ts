@@ -23,6 +23,12 @@ const publicCache = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["nodemailer"],
+  async redirects() {
+    return [
+      { source: "/plans", destination: "/products", permanent: true },
+      { source: "/plans/:id", destination: "/products/:id", permanent: true },
+    ];
+  },
   async headers() {
     return [
       { source: "/_next/static/:path*", headers: longCache },

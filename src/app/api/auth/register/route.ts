@@ -6,6 +6,7 @@ import { consumeRegisterAttempt } from "@/lib/auth-rate-limit";
 import { createUser, findUserByEmail } from "@/lib/auth";
 import { clientIp } from "@/lib/client-ip";
 import { normalizeEmail } from "@/lib/email";
+import { logApiError, requestIdFrom } from "@/lib/server-log";
 import { getSession } from "@/lib/session";
 
 const schema = z.object({
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   const email = normalizeEmail(parsed.data.email);
+  const requestId = requestIdFrom(req.headers);
   try {
     const limit = await consumeRegisterAttempt(email, clientIp(req.headers));
     if (limit.limited) {
@@ -56,8 +58,8 @@ export async function POST(req: NextRequest) {
     if (!session.cart) session.cart = [];
     await session.save();
     return NextResponse.json({ ok: true, user: { id: user.id, email: user.email, role: user.role } });
-  } catch {
-    console.error("[aisubscr] register failed");
+  } catch (error) {
+    logApiError({ requestId, route: "/api/auth/register", status: 400, error });
     return NextResponse.json({ error: t.auth.registerFailed }, { status: 400 });
   }
 }

@@ -1,19 +1,5 @@
-import Link from "next/link";
-import { getDict } from "@/i18n";
-import { getLocale } from "@/i18n/server";
+import { NotFoundCard } from "@/components/NotFoundCard";
 
-export default async function ShopNotFound() {
-  const t = getDict(await getLocale());
-  return (
-    <div className="card empty-state">
-      <p className="eyebrow" style={{ margin: 0 }}>
-        404
-      </p>
-      <h1 className="page-title">{t.common.notFoundTitle}</h1>
-      <p className="muted">{t.common.notFoundBody}</p>
-      <Link href="/products" className="btn btn-primary">
-        {t.shop.emptyCta}
-      </Link>
-    </div>
-  );
+export default function ShopNotFound() {
+  return <NotFoundCard />;
 }

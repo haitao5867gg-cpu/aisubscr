@@ -1,10 +1,11 @@
-import { randomInt } from "crypto";
+import { randomInt, randomUUID } from "crypto";
 import type { Prisma } from "@prisma/client";
 import type { Dict } from "@/i18n";
 import { zh } from "@/i18n/zh";
 import { findUserByEmail, hashPassword, verifyPassword } from "./auth";
 import { prisma } from "./db";
 import { normalizeEmail } from "./email";
+import { logApiError } from "./server-log";
 import { MailConfigError, sendPasswordResetEmail } from "./mail";
 
 const CODE_TTL_MS = 15 * 60 * 1000;
@@ -55,6 +56,7 @@ async function bucketLimited(db: Db, bucket: string, now: number) {
 export async function requestPasswordReset(input: {
   email: string;
   ip: string;
+  requestId?: string;
 }): Promise<PasswordResetRequestResult> {
   const email = normalizeEmail(input.email);
   const ip = input.ip.trim().slice(0, 64) || "unknown";
@@ -94,13 +96,16 @@ export async function requestPasswordReset(input: {
   } catch (error) {
     await prisma.passwordResetCode.deleteMany({ where: { userId: user.id } });
     const reason = error instanceof Error ? error.message : "send failed";
-    if (error instanceof MailConfigError) {
-      console.error(`[aisubscr mail] password reset is not configured (${reason}). Console fallback was not used.`);
-    } else {
-      console.error(
-        `[aisubscr mail] password reset send failed to=${user.email} (${reason}). Console fallback was not used.`,
-      );
-    }
+    const detail =
+      error instanceof MailConfigError
+        ? `password reset is not configured (${reason}). Console fallback was not used.`
+        : `password reset send failed (${reason}). Console fallback was not used.`;
+    logApiError({
+      requestId: input.requestId || randomUUID(),
+      route: "/api/auth/forgot-password",
+      status: 500,
+      error: new Error(detail),
+    });
     return { status: "send_failed" };
   }
   return { status: "sent", email: user.email };

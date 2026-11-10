@@ -10,6 +10,8 @@ WorkingDirectory=/opt/aisubscr
 Environment=NODE_ENV=production
 Environment=NEXT_TELEMETRY_DISABLED=1
 EnvironmentFile=/opt/aisubscr/.env
+# API failures are one JSON object per line on stderr (requestId, route, status).
+# journalctl -u aisubscr -o cat
 ExecStart=/usr/bin/node /opt/aisubscr/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
 Restart=always
 RestartSec=5
