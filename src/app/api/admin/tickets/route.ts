@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/session";
+import { adminAuthResponse, requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
   try {
     await requireAdmin();
-  } catch {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  } catch (error) {
+    const denied = adminAuthResponse(error);
+    if (denied) return denied;
+    throw error;
   }
   const tickets = await prisma.ticket.findMany({
     include: {

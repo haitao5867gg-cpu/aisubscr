@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/session";
+import { adminAuthResponse, requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
 const schema = z.object({
@@ -15,8 +15,10 @@ const schema = z.object({
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin();
-  } catch {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  } catch (error) {
+    const denied = adminAuthResponse(error);
+    if (denied) return denied;
+    throw error;
   }
   const { id } = await params;
   const body = schema.parse(await req.json());
@@ -27,8 +29,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireAdmin();
-  } catch {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  } catch (error) {
+    const denied = adminAuthResponse(error);
+    if (denied) return denied;
+    throw error;
   }
   const { id } = await params;
   await prisma.blogPost.delete({ where: { id } });

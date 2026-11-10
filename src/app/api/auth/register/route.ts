@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { zh } from "@/i18n/zh";
+import { consumeRegisterAttempt } from "@/lib/auth-rate-limit";
 import { createUser, findUserByEmail } from "@/lib/auth";
+import { clientIp } from "@/lib/client-ip";
+import { normalizeEmail } from "@/lib/email";
 import { getSession } from "@/lib/session";
 
 const schema = z.object({
@@ -10,13 +14,32 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  let json: unknown;
   try {
-    const body = schema.parse(await req.json());
-    const existing = await findUserByEmail(body.email);
+    json = await req.json();
+  } catch {
+    return NextResponse.json({ error: "注册失败" }, { status: 400 });
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "注册失败" }, { status: 400 });
+  }
+
+  const email = normalizeEmail(parsed.data.email);
+  try {
+    const limit = await consumeRegisterAttempt(email, clientIp(req.headers));
+    if (limit.limited) {
+      return NextResponse.json(
+        { error: zh.auth.registerRateLimited },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+      );
+    }
+
+    const existing = await findUserByEmail(email);
     if (existing) {
       return NextResponse.json({ error: "该邮箱已注册" }, { status: 400 });
     }
-    const user = await createUser(body.email, body.password, body.name);
+    const user = await createUser(email, parsed.data.password, parsed.data.name);
     const session = await getSession();
     session.userId = user.id;
     session.email = user.email;

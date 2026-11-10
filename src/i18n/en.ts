@@ -58,6 +58,8 @@ export const en: Dict = {
     backToLogin: "Back to log in",
     invalidCode: "That code is invalid or expired",
     rateLimited: "Too many requests. Try again shortly.",
+    loginRateLimited: "Too many attempts. Try again shortly.",
+    registerRateLimited: "Too many sign-up attempts. Try again shortly.",
     passwordRequired: "Enter a new password",
     emailInvalid: "Enter a valid email",
   },
