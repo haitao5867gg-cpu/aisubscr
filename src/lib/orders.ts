@@ -17,36 +17,56 @@ export async function createOrderFromItems(
 ) {
   if (!items.length) throw new Error("EMPTY_CART");
 
-  const products = await prisma.product.findMany({
-    where: { id: { in: items.map((i) => i.productId) }, active: true },
-  });
-  if (products.length !== items.length) throw new Error("PRODUCT_NOT_FOUND");
+  const merged = new Map<string, number>();
+  for (const item of items) {
+    const qty = Math.max(1, Math.floor(item.quantity) || 1);
+    merged.set(item.productId, (merged.get(item.productId) ?? 0) + qty);
+  }
+  const ids = [...merged.keys()];
 
-  const productMap = new Map(products.map((p) => [p.id, p]));
-  let totalCents = 0;
-  const orderItems = items.map((i) => {
-    const p = productMap.get(i.productId)!;
-    const qty = Math.max(1, i.quantity);
-    totalCents += p.priceCents * qty;
-    return {
-      productId: p.id,
-      productName: p.name,
-      unitPriceCents: p.priceCents,
-      quantity: qty,
-      isSubscription: p.isSubscription,
-    };
-  });
+  return prisma.$transaction(async (tx) => {
+    const products = await tx.product.findMany({
+      where: { id: { in: ids }, active: true },
+    });
+    if (products.length !== ids.length) throw new Error("PRODUCT_NOT_FOUND");
 
-  return prisma.order.create({
-    data: {
-      orderNo: generateOrderNo(),
-      userId,
-      totalCents,
-      status: "PENDING",
-      isRenewal: opts?.isRenewal ?? false,
-      parentOrderId: opts?.parentOrderId,
-      items: { create: orderItems },
-    },
-    include: { items: true },
+    const productMap = new Map(products.map((product) => [product.id, product]));
+    let totalCents = 0;
+    const orderItems = ids.map((id) => {
+      const product = productMap.get(id)!;
+      const quantity = merged.get(id)!;
+      if (product.stock !== null && product.stock < quantity) throw new Error("OUT_OF_STOCK");
+      totalCents += product.priceCents * quantity;
+      return {
+        productId: product.id,
+        productName: product.name,
+        unitPriceCents: product.priceCents,
+        quantity,
+        isSubscription: product.isSubscription,
+      };
+    });
+
+    for (const item of orderItems) {
+      const product = productMap.get(item.productId)!;
+      if (product.stock === null) continue;
+      const updated = await tx.product.updateMany({
+        where: { id: product.id, active: true, stock: { gte: item.quantity } },
+        data: { stock: { decrement: item.quantity } },
+      });
+      if (updated.count !== 1) throw new Error("OUT_OF_STOCK");
+    }
+
+    return tx.order.create({
+      data: {
+        orderNo: generateOrderNo(),
+        userId,
+        totalCents,
+        status: "PENDING",
+        isRenewal: opts?.isRenewal ?? false,
+        parentOrderId: opts?.parentOrderId,
+        items: { create: orderItems },
+      },
+      include: { items: true },
+    });
   });
 }

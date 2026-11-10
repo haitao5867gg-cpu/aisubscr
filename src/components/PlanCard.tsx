@@ -12,6 +12,7 @@ export async function PlanCard({
     description: string;
     priceCents: number;
     isSubscription: boolean;
+    stock?: number | null;
   };
 }) {
   const zh = getDict(await getLocale());
@@ -19,8 +20,8 @@ export async function PlanCard({
     <article className={`card plan-card ${product.isSubscription ? "renewable" : ""}`}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{product.name}</h2>
-        <span className={`badge ${product.isSubscription ? "badge-mock" : "badge-example"}`}>
-          {product.isSubscription ? zh.product.subscription : zh.shop.oneTime}
+        <span className={`badge ${product.stock === 0 ? "badge-example" : product.isSubscription ? "badge-mock" : "badge-example"}`}>
+          {product.stock === 0 ? zh.shop.outOfStock : product.isSubscription ? zh.product.subscription : zh.shop.oneTime}
         </span>
       </div>
       <div>

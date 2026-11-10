@@ -39,11 +39,17 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         priceCents={product.priceCents}
         isSubscription={product.isSubscription}
         loggedIn={Boolean(session.isLoggedIn)}
+        inStock={product.stock === null || product.stock > 0}
       />
       <div className="detail-main stack">
         <div>
           <p className="eyebrow">{zh.product.detail}</p>
           <h1 className="page-title">{product.name}</h1>
+          {product.imageUrl && (
+            // Same-origin paths only; the CSP does not allow remote images.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={product.imageUrl} alt={product.name} className="product-photo" />
+          )}
           <p style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>{product.description}</p>
         </div>
         <section className="card" style={{ padding: "1.15rem 1.25rem" }}>

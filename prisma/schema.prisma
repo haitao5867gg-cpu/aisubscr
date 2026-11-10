@@ -13,13 +13,16 @@ model User {
   passwordHash   String
   name           String?
   role           String   @default("USER") // USER | ADMIN
+  disabled       Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  sessionVersion Int      @default(0) // bumped on password reset to invalidate iron-session cookies
+  sessionVersion Int      @default(0) // bumped to invalidate iron-session cookies
   orders         Order[]
   tickets        Ticket[]
   ticketReplies  TicketReply[]
   passwordResetCode PasswordResetCode?
+  emailChangeCode EmailChangeCode?
+  auditLogs      AuditLog[]
 }
 
 /// One active password-reset code per user. The code is stored hashed.
@@ -61,6 +64,9 @@ model Product {
   imageUrl        String?
   isSubscription  Boolean  @default(false)
   active          Boolean  @default(true)
+  /// Null means stock is not tracked. Zero means it cannot be purchased.
+  stock           Int?
+  sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   orderItems      OrderItem[]
@@ -133,6 +139,36 @@ model TicketReply {
   body      String
   isStaff   Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+/// One pending email-change code per user. The code is stored hashed.
+model EmailChangeCode {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newEmail  String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+/// Admin mutations: who, what, when, and the before/after payload.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  actorEmail String
+  action     String
+  targetType String
+  targetId   String
+  note       String?
+  beforeJson String?
+  afterJson  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
 }
 
 model SiteSetting {

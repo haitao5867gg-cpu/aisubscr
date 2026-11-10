@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -12,6 +13,19 @@ async function main() {
       supportEmail: "support@example.com",
       supportHours: "08:00–23:00",
       footerText: "示例数字商品商城框架 · 仅供演示",
+    },
+  });
+
+  const adminEmail = "e2e-admin@example.com";
+  const passwordHash = await bcrypt.hash("e2e-admin-pass", 10);
+  await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: { passwordHash, role: "ADMIN", disabled: false, name: "端到端管理员" },
+    create: {
+      email: adminEmail,
+      passwordHash,
+      role: "ADMIN",
+      name: "端到端管理员",
     },
   });
 

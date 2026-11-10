@@ -50,6 +50,7 @@ export function createSmtpMailer(): Mailer {
         to: mail.to,
         subject: mail.subject,
         text: mail.text,
+        html: mail.html,
       });
     },
   };

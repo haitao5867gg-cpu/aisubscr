@@ -82,14 +82,16 @@ export async function getSession() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { sessionVersion: true, role: true },
+    select: { sessionVersion: true, role: true, disabled: true, email: true, name: true },
   });
   const presented = typeof session.sessionVersion === "number" ? session.sessionVersion : 0;
-  if (!user || user.sessionVersion !== presented) {
+  if (!user || user.disabled || user.sessionVersion !== presented) {
     clearIdentity(session);
     return session;
   }
   if (session.role !== user.role) session.role = user.role;
+  if (session.email !== user.email) session.email = user.email;
+  session.name = user.name || undefined;
   return session;
 }
 

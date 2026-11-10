@@ -51,6 +51,7 @@ export default async function AccountPage() {
           {zh.shop.accountHello}，{session.name || session.email}
         </h1>
         <p className="page-desc">{session.email}</p>
+        <Link href="/account/security" className="btn btn-secondary">{zh.security.security}</Link>
       </div>
 
       <section className="stack">

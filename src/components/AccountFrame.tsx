@@ -6,7 +6,7 @@ export async function AccountFrame({
   current,
   children,
 }: {
-  current: "home" | "orders" | "tickets";
+  current: "home" | "orders" | "tickets" | "security";
   children: React.ReactNode;
 }) {
   const zh = getDict(await getLocale());
@@ -14,6 +14,7 @@ export async function AccountFrame({
     { id: "home" as const, href: "/account", label: zh.nav.account },
     { id: "orders" as const, href: "/orders", label: zh.nav.orders },
     { id: "tickets" as const, href: "/tickets", label: zh.nav.tickets },
+    { id: "security" as const, href: "/account/security", label: zh.security.security },
   ];
 
   return (

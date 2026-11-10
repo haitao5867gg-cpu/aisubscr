@@ -82,3 +82,51 @@ test("add to cart, mock pay, and mark the order paid", async ({ page }) => {
   await expect(page.getByText("支付成功")).toBeVisible();
   await expect(page.locator(".badge-paid").first()).toHaveText("已支付");
 });
+
+test("account security changes the password and keeps this session", async ({ page }) => {
+  const email = `sec-${Date.now()}@example.com`;
+  await page.goto("/register");
+  await page.getByLabel("邮箱").fill(email);
+  await page.getByLabel("密码").fill("secret12");
+  await page.getByRole("button", { name: "注册账号" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+
+  await page.goto("/account/security");
+  await expect(page.getByRole("heading", { name: "账号安全" })).toBeVisible();
+  await page.getByLabel("当前密码").fill("secret12");
+  await page.getByLabel("新密码", { exact: true }).fill("secret13");
+  await page.getByLabel("再输入一次新密码").fill("secret13");
+  await page.getByRole("button", { name: "修改密码" }).click();
+  await expect(page.getByText("密码已更新")).toBeVisible();
+  await expect(page).toHaveURL(/\/account\/security$/);
+
+  await page.getByRole("button", { name: "退出" }).click();
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill(email);
+  await page.getByLabel("密码").fill("secret12");
+  await page.getByRole("button", { name: "登录" }).click();
+  await expect(page.getByText("邮箱或密码错误")).toBeVisible();
+  await page.getByLabel("密码").fill("secret13");
+  await page.getByRole("button", { name: "登录" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+});
+
+test("admin dashboard is staff-only", async ({ page }) => {
+  const email = `shopper-${Date.now()}@example.com`;
+  await page.goto("/register");
+  await page.getByLabel("邮箱").fill(email);
+  await page.getByLabel("密码").fill("secret12");
+  await page.getByRole("button", { name: "注册账号" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/$/);
+
+  await page.goto("/login?next=/admin");
+  await page.getByLabel("邮箱").fill("e2e-admin@example.com");
+  await page.getByLabel("密码").fill("e2e-admin-pass");
+  await page.getByRole("button", { name: "登录" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("heading", { name: "今日", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "近 7 日订单", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "最近订单", exact: true })).toBeVisible();
+});

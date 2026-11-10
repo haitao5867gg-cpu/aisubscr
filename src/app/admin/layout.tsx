@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getDict } from "@/i18n";
@@ -14,14 +14,20 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
-  if (!session.isLoggedIn) redirect("/login?next=/admin");
-  if (session.role !== "ADMIN") redirect("/");
+  try {
+    await requireAdmin();
+  } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") redirect("/login?next=/admin");
+    if (error instanceof Error && error.message === "FORBIDDEN") redirect("/");
+    throw error;
+  }
   const zh = getDict(await getLocale());
   const links = [
-    { href: "/admin", label: zh.admin.title },
-    { href: "/admin/products", label: zh.admin.products },
+    { href: "/admin", label: zh.admin.overview },
     { href: "/admin/orders", label: zh.admin.orders },
+    { href: "/admin/products", label: zh.admin.products },
+    { href: "/admin/users", label: zh.admin.users },
+    { href: "/admin/audit", label: zh.admin.audit },
     { href: "/admin/tickets", label: zh.admin.tickets },
     { href: "/admin/blog", label: zh.admin.blog },
     { href: "/admin/settings", label: zh.admin.settings },

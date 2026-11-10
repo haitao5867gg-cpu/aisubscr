@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
       await recordLoginFailure(email, ip);
       return NextResponse.json({ error: t.auth.badCredentials }, { status: 401 });
     }
+    if (user.disabled) {
+      return NextResponse.json({ error: t.auth.accountDisabled }, { status: 403 });
+    }
 
     const session = await getSession();
     session.userId = user.id;
