@@ -25,7 +25,9 @@ export default async function AdminSettingsPage() {
           announcementText: settings.announcementText,
           announcementEnabled: settings.announcementEnabled,
           orderExpireMinutes: settings.orderExpireMinutes,
-          hasContactQr: Boolean(settings.qrImageData && settings.qrImageMime),
+          adminTotpRequired: settings.adminTotpRequired,
+          qrImageUrl: settings.qrImageUrl || "",
+          hasContactQr: Boolean(settings.qrImageUrl || (settings.qrImageData && settings.qrImageMime)),
         }}
       />
     </div>

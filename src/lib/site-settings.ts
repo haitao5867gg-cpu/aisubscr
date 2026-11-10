@@ -13,6 +13,8 @@ export type SettingsRow = {
   wechatId: string;
   qq: string;
   contactEmail: string;
+  qrImageUrl: string | null;
+  adminTotpRequired: boolean;
   qrImageMime: string | null;
   qrImageData: string | null;
   announcementText: string;
@@ -30,7 +32,9 @@ export function settingsView(row: SettingsRow) {
     wechatId: row.wechatId,
     qq: row.qq,
     contactEmail: row.contactEmail,
-    hasContactQr: Boolean(row.qrImageData && row.qrImageMime),
+    qrImageUrl: row.qrImageUrl || "",
+    hasContactQr: Boolean(row.qrImageUrl || (row.qrImageData && row.qrImageMime)),
+    adminTotpRequired: row.adminTotpRequired,
     announcementText: row.announcementText,
     announcementEnabled: row.announcementEnabled,
     orderExpireMinutes: row.orderExpireMinutes,

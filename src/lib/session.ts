@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { prisma } from "./db";
+import { adminTotpState } from "./totp-policy";
 
 export type SessionData = {
   userId?: string;
@@ -113,11 +114,20 @@ export async function requireUser() {
   return session;
 }
 
-export async function requireAdmin() {
+/** Logged-in admin, including one who still has to enroll because 2FA is mandatory. */
+export async function requireAdminUser() {
   const session = await requireUser();
   if (session.role !== "ADMIN") {
     throw new Error("FORBIDDEN");
   }
+  return session;
+}
+
+export async function requireAdmin() {
+  const session = await requireAdminUser();
+  if (!session.userId) throw new Error("UNAUTHORIZED");
+  const totp = await adminTotpState(session.userId);
+  if (totp.blocked) throw new Error("TOTP_ENROLLMENT_REQUIRED");
   return session;
 }
 
@@ -130,6 +140,9 @@ export async function adminAuthResponse(error: unknown): Promise<NextResponse | 
   }
   if (error.message === "FORBIDDEN") {
     return NextResponse.json({ error: t.api.forbidden }, { status: 403 });
+  }
+  if (error.message === "TOTP_ENROLLMENT_REQUIRED") {
+    return NextResponse.json({ error: t.admin.totpMustEnroll, code: "TOTP_ENROLLMENT_REQUIRED" }, { status: 403 });
   }
   return null;
 }

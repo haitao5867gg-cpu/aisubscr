@@ -4,6 +4,7 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { isAllowedImageReference } from "@/lib/image-ref";
 import { decodeQrImage, settingsView, type SettingsRow } from "@/lib/site-settings";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
@@ -18,6 +19,8 @@ const schema = z.object({
   announcementText: z.string().trim().max(280).optional(),
   announcementEnabled: z.boolean().optional(),
   orderExpireMinutes: z.number().int().min(1).max(24 * 60).optional(),
+  adminTotpRequired: z.boolean().optional(),
+  qrImageUrl: z.string().trim().min(1).max(500).optional(),
   qrImageMime: z.enum(["image/png", "image/jpeg", "image/webp"]).nullable().optional(),
   qrImageBase64: z.string().max(800_000).nullable().optional(),
   clearQr: z.boolean().optional(),
@@ -66,6 +69,8 @@ export async function PATCH(req: NextRequest) {
     announcementText?: string;
     announcementEnabled?: boolean;
     orderExpireMinutes?: number;
+    adminTotpRequired?: boolean;
+    qrImageUrl?: string | null;
     qrImageMime?: string | null;
     qrImageData?: string | null;
   } = {};
@@ -80,12 +85,21 @@ export async function PATCH(req: NextRequest) {
     "announcementText",
     "announcementEnabled",
     "orderExpireMinutes",
+    "adminTotpRequired",
   ] as const;
   for (const key of fields) {
     const value = parsed.data[key];
     if (value !== undefined) (data as Record<string, string | number | boolean | null>)[key] = value;
   }
   if (parsed.data.clearQr) {
+    data.qrImageMime = null;
+    data.qrImageData = null;
+    data.qrImageUrl = null;
+  } else if (parsed.data.qrImageUrl) {
+    if (!isAllowedImageReference(parsed.data.qrImageUrl)) {
+      return NextResponse.json({ error: t.admin.uploadInvalid }, { status: 400 });
+    }
+    data.qrImageUrl = parsed.data.qrImageUrl;
     data.qrImageMime = null;
     data.qrImageData = null;
   } else if (parsed.data.qrImageBase64 && parsed.data.qrImageMime) {

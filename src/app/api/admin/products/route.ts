@@ -4,7 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { catalogOrderBy } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
-import { productCreateData, productCreateSchema, productSnapshot } from "@/lib/product-input";
+import { imageFieldRejected, productCreateData, productCreateSchema, productSnapshot } from "@/lib/product-input";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 export async function GET() {
@@ -30,7 +30,12 @@ export async function POST(req: NextRequest) {
     throw error;
   }
   const parsed = productCreateSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: t.admin.invalidProduct }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: imageFieldRejected(parsed.error) ? t.admin.imageInvalid : t.admin.invalidProduct },
+      { status: 400 },
+    );
+  }
   const actor = actorFrom(session);
   const product = await prisma.$transaction(async (tx) => {
     const created = await tx.product.create({ data: productCreateData(parsed.data) });

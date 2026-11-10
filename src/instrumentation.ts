@@ -1,5 +1,12 @@
 import { logApiError, requestIdFrom } from "@/lib/server-log";
 
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { ensureSqlitePragmas } = await import("@/lib/db");
+    await ensureSqlitePragmas();
+  }
+}
+
 type RequestErrorContext = {
   routerKind: "Pages Router" | "App Router";
   routePath: string;

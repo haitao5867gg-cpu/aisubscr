@@ -7,7 +7,9 @@ import { getLocale } from "@/i18n/server";
 import { PlanCard } from "@/components/PlanCard";
 import { EmptyState } from "@/components/EmptyState";
 import { catalogOrderBy } from "@/lib/catalog";
-import { pageMeta } from "@/lib/seo";
+import { JsonLd } from "@/components/JsonLd";
+import { organizationJsonLd, pageMeta } from "@/lib/seo";
+import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -42,8 +44,17 @@ export default async function HomePage() {
     [zh.shop.faq4q, zh.shop.faq4a],
   ];
 
+  const origin = siteUrl();
   return (
     <div>
+      <JsonLd
+        data={organizationJsonLd({
+          name: settings?.siteName || zh.siteName,
+          url: origin,
+          email: supportEmail,
+          logo: `${origin}/og.png`,
+        })}
+      />
       <section className="shop-hero">
         <div>
           <p className="eyebrow">{zh.shop.eyebrow}</p>

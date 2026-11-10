@@ -81,6 +81,7 @@ src/app/globals.css  主题 CSS 变量（便于后续换肤）
 | 动作 | 邮箱 | IP |
 |------|------|----|
 | 登录失败 | 15 分钟最多 5 次 | 15 分钟最多 20 次 |
+| 管理员验证码错误 | 15 分钟最多 5 次 | 15 分钟最多 20 次 |
 | 注册 | 约 60 秒 1 次，并且每小时最多 5 次 | 与邮箱相同 |
 
 登录只记录失败。密码正确不受这次限制，输错一次也可以马上再试，直到达到上面的次数。未注册的邮箱同样计次，避免用「是否被限制」判断邮箱是否存在。超过后返回「尝试次数过多，请稍后再试」（HTTP 429，带 `Retry-After`）。
@@ -102,6 +103,12 @@ src/app/globals.css  主题 CSS 变量（便于后续换肤）
 会话 Cookie 名 `aisubscr_session`：`HttpOnly`、`SameSite=Lax`、`Path=/`，生产环境 `Secure`。生产环境的 `SESSION_SECRET` 必须至少 32 位，且不能是 `.env.example` 里的占位符或代码里的开发回退值，否则进程拒绝签发会话。
 
 管理页面在服务端布局里检查登录和 `ADMIN`。管理 API 同样在处理数据前调用 `requireAdmin()`。角色每次从数据库读取，不单独信任 Cookie 里的旧角色。未登录返回 401，已登录但不是管理员返回 403。模拟支付完成改为仅订单本人可 POST，避免别人凭订单号把订单标成已支付。
+
+管理员可以在 `/admin/security` 开启 TOTP 两步验证（RFC 6238，6 位、30 秒、SHA-1，Google Authenticator 和常见验证器可用）。绑定后登录要输入验证码或一次性恢复码。恢复码只存 bcrypt 哈希，一共 10 个。关闭需要当前密码再加验证码。站点设置里可以要求所有管理员开启；还没绑定的管理员只能打开两步验证页面。开启和关闭写入审计日志。
+
+商品图和客服二维码可以在后台上传。校验类型和文件头（JPG、PNG、WebP，最大 5MB），再用 sharp 转成 WebP。配置了 `R2_*` 时写入 Cloudflare R2，否则写到 `public/uploads`。说明见 `deploy/UPLOADS.md`。
+
+SQLite 在进程启动时打开 WAL，并设置 5 秒 `busy_timeout`。订单按用户、状态和时间查询有索引。`/api/internal/` 在 nginx 里只允许本机访问，应用本身仍校验 `CRON_SECRET`。
 
 ## 支付提供商
 
@@ -147,6 +154,7 @@ Cloudflare Email Sending 尚未开通时保持 `MAIL_PROVIDER=console`。真实�
 - `20261109120000_baseline`：升级前的表结构
 - `20261109120500_password_reset`：给 `User` 增加 `sessionVersion`（`ALTER TABLE`，默认 0），并新建验证码表。不重建用户表，不删除已有行
 - `20261110120000_auth_rate_events`：新建 `AuthRateEvent`，供登录失败和注册频率限制。不改已有表
+- `20261110233000_admin_totp_uploads_indexes`：管理员 TOTP 列、恢复码表、客服二维码 URL、订单索引。不写种子数据
 
 **不要**在生产运行 `npm run db:seed`、`npm run db:setup` 或 `npx prisma db seed`。seed 会重置管理员密码。
 

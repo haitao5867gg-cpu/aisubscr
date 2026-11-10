@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/session";
+import { requireAdminUser } from "@/lib/session";
+import { adminTotpState } from "@/lib/totp-policy";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getDict } from "@/i18n";
@@ -14,13 +16,17 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  let session;
   try {
-    await requireAdmin();
+    session = await requireAdminUser();
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") redirect("/login?next=/admin");
     if (error instanceof Error && error.message === "FORBIDDEN") redirect("/");
     throw error;
   }
+  const totp = session.userId ? await adminTotpState(session.userId) : { enabled: false, required: false, blocked: false };
+  const path = (await headers()).get("x-pathname") ?? "";
+  if (totp.blocked && path !== "/admin/security") redirect("/admin/security");
   const zh = getDict(await getLocale());
   const links = [
     { href: "/admin", label: zh.admin.overview },
@@ -33,6 +39,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/coupons", label: zh.admin.coupons },
     { href: "/admin/faq", label: zh.admin.faq },
     { href: "/admin/settings", label: zh.admin.settings },
+    { href: "/admin/security", label: zh.admin.security },
   ];
 
   return (
@@ -50,7 +57,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </Link>
             ))}
           </nav>
-          <div className="stack">{children}</div>
+          <div className="stack">
+            {!totp.enabled && (
+              <div className="alert alert-mock" role="status">
+                {totp.blocked ? zh.admin.totpMustEnroll : zh.admin.totpEncourage}{" "}
+                {path !== "/admin/security" && (
+                  <Link href="/admin/security" className="text-link">
+                    {zh.admin.totpSetupLink}
+                  </Link>
+                )}
+              </div>
+            )}
+            {children}
+          </div>
         </div>
       </main>
       <Footer />

@@ -8,14 +8,23 @@ test.beforeEach(async ({ page }, info) => {
   await page.setExtraHTTPHeaders({ "x-real-ip": `198.51.100.${host}` });
 });
 
-test("home, health, plans redirect, and unknown paths", async ({ page, request }) => {
+test("home, health, plans redirect, structured data, and unknown paths", async ({ page, request }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const organization = await page.locator('script[type="application/ld+json"]').textContent();
+  expect(organization).toContain("Organization");
+  expect(organization).toContain("aisubscr");
+
   await page.getByRole("link", { name: "查看方案" }).first().click();
   await expect(page).toHaveURL(/\/products$/);
 
   await page.goto("/plans");
   await expect(page).toHaveURL(/\/products$/);
+  await page.getByRole("link", { name: "选择此方案" }).first().click();
+  await expect(page).toHaveURL(/\/products\//);
+  const productLd = await page.locator('script[type="application/ld+json"]').textContent();
+  expect(productLd).toContain("Product");
+  expect(productLd).toContain("CNY");
 
   const health = await request.get("/api/health");
   expect(health.ok()).toBeTruthy();

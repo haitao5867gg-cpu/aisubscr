@@ -15,6 +15,11 @@ export default defineConfig({
     alias: { "@": path.resolve(__dirname, "src") },
   },
   test: {
+    server: {
+      deps: {
+        external: ["sharp", "@aws-sdk/client-s3"],
+      },
+    },
     environment: "node",
     include: ["tests/**/*.test.ts"],
     globalSetup: ["./tests/global-setup.ts"],
