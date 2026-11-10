@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
@@ -9,9 +10,17 @@ import { RenewButton } from "@/components/RenewButton";
 import { TicketForm } from "@/components/TicketForm";
 import { OrderTimeline } from "@/components/OrderTimeline";
 import { OrderSummary } from "@/components/OrderSummary";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.orderTitle, description: t.seo.orderDescription, path: `/orders/${id}`, index: false });
+}
 
 export default async function OrderDetailPage({
   params,
@@ -20,6 +29,7 @@ export default async function OrderDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ paid?: string }>;
 }) {
+  const zh = getDict(await getLocale());
   const { id } = await params;
   const sp = await searchParams;
   const session = await getSession();
@@ -44,7 +54,7 @@ export default async function OrderDetailPage({
         </div>
         <StatusBadge status={order.status} />
       </div>
-      {sp.paid === "1" && <div className="alert alert-mock">{zh.payment.success}（模拟支付）</div>}
+      {sp.paid === "1" && <div className="alert alert-mock" role="status">{zh.payment.success}</div>}
 
       <div className="detail-grid">
         <OrderSummary
@@ -63,7 +73,7 @@ export default async function OrderDetailPage({
             <div className="muted" style={{ fontSize: "0.9rem", marginBottom: "0.4rem" }}>
               {zh.order.shareHint}
             </div>
-            <Link href={shareUrl} style={{ color: "var(--primary)", wordBreak: "break-all" }}>
+            <Link href={shareUrl} className="text-link" style={{ wordBreak: "break-all" }}>
               {shareUrl}
             </Link>
           </div>
@@ -79,7 +89,7 @@ export default async function OrderDetailPage({
               <TicketForm orderId={order.id} />
               {order.tickets.length > 0 && (
                 <div className="stack">
-                  <h3 style={{ margin: 0 }}>相关工单</h3>
+                  <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{zh.shop.relatedTickets}</h2>
                   {order.tickets.map((ticket) => (
                     <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="card" style={{ padding: "0.9rem", display: "block" }}>
                       {ticket.subject} <StatusBadge status={ticket.status} kind="ticket" />

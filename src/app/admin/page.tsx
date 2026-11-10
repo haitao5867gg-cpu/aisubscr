@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminHome() {
+  const zh = getDict(await getLocale());
   const [products, orders, tickets, posts] = await Promise.all([
     prisma.product.count(),
     prisma.order.count(),
@@ -14,17 +16,17 @@ export default async function AdminHome() {
   return (
     <div className="stack">
       <h1 className="page-title">{zh.admin.title}</h1>
-      <p className="page-desc">管理商品、订单、工单、文章与站点设置。</p>
+      <p className="page-desc">{zh.admin.lead}</p>
       <div className="card">
         {[
-          ["商品", products, "/admin/products"],
-          ["订单", orders, "/admin/orders"],
-          ["待处理工单", tickets, "/admin/tickets"],
-          ["文章", posts, "/admin/blog"],
+          [zh.admin.productsCount, products, "/admin/products"],
+          [zh.admin.ordersCount, orders, "/admin/orders"],
+          [zh.admin.openTickets, tickets, "/admin/tickets"],
+          [zh.admin.postsCount, posts, "/admin/blog"],
         ].map(([label, n, href]) => (
           <Link key={String(label)} href={String(href)} className="ledger-row">
             <strong>{label}</strong>
-            <span className="muted">进入管理</span>
+            <span className="muted">{zh.admin.dashboardLead}</span>
             <span />
             <strong>{n}</strong>
           </Link>

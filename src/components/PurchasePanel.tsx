@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatRmb } from "@/lib/money";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 import { AddToCartButton } from "./AddToCartButton";
 
 export function PurchasePanel({
@@ -17,17 +17,12 @@ export function PurchasePanel({
   isSubscription: boolean;
   loggedIn: boolean;
 }) {
-  const choices = isSubscription
-    ? [
-        { qty: 1, label: "1 个月" },
-        { qty: 3, label: "3 个月" },
-        { qty: 6, label: "6 个月" },
-      ]
-    : [
-        { qty: 1, label: "1 件" },
-        { qty: 2, label: "2 件" },
-        { qty: 3, label: "3 件" },
-      ];
+  const zh = useDict();
+  const unit = isSubscription ? zh.shop.periodCount : zh.shop.qtyCount;
+  const choices = (isSubscription ? [1, 3, 6] : [1, 2, 3]).map((qty) => ({
+    qty,
+    label: unit.replace("{n}", String(qty)),
+  }));
   const [qty, setQty] = useState(choices[0].qty);
   const [intent, setIntent] = useState<"buy" | "renew">("buy");
   const total = priceCents * qty;

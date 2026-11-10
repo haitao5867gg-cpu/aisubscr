@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 
 export function PayPanel({ orderId }: { orderId: string }) {
+  const zh = useDict();
   const [method, setMethod] = useState<"WECHAT" | "ALIPAY" | "MOCK">("WECHAT");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -19,7 +20,7 @@ export function PayPanel({ orderId }: { orderId: string }) {
     const data = await res.json();
     if (!res.ok) {
       setBusy(false);
-      setError(data.error || "支付发起失败");
+      setError(data.error || zh.payment.payFailed);
       return;
     }
     const redirectUrl = typeof data.payment?.redirectUrl === "string" ? data.payment.redirectUrl : "";
@@ -29,7 +30,7 @@ export function PayPanel({ orderId }: { orderId: string }) {
       const payload = await done.json().catch(() => ({}));
       if (!done.ok) {
         setBusy(false);
-        setError(payload.error || "支付发起失败");
+        setError(payload.error || zh.payment.payFailed);
         return;
       }
       window.location.href = typeof payload.redirect === "string" ? payload.redirect : `/orders/${orderId}?paid=1`;
@@ -57,7 +58,7 @@ export function PayPanel({ orderId }: { orderId: string }) {
           <span className="badge badge-mock">{zh.common.mockPay}</span>
         </label>
       ))}
-      {error && <div className="alert" style={{ color: "var(--danger)" }}>{error}</div>}
+      {error && <div className="alert alert-danger" role="alert">{error}</div>}
       <button className="btn btn-primary" disabled={busy} onClick={pay}>
         {busy ? zh.common.loading : zh.order.pay}
       </button>

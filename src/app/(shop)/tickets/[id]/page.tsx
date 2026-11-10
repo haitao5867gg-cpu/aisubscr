@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
@@ -5,11 +6,19 @@ import { prisma } from "@/lib/db";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TicketReplyForm } from "@/components/TicketReplyForm";
 import { AccountFrame } from "@/components/AccountFrame";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.ticketsTitle, description: t.seo.ticketsDescription, path: "/tickets", index: false });
+}
+
 export default async function TicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const zh = getDict(await getLocale());
   const { id } = await params;
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect("/login");
@@ -34,8 +43,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         <StatusBadge status={ticket.status} kind="ticket" />
       </div>
       <div className="muted">
-        订单{" "}
-        <Link href={`/orders/${ticket.orderId}`} style={{ color: "var(--primary)" }}>
+        {zh.shop.orderRef}{" "}
+        <Link href={`/orders/${ticket.orderId}`} className="text-link">
           {ticket.order.orderNo}
         </Link>
       </div>
@@ -43,7 +52,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         {ticket.replies.map((reply) => (
           <div key={reply.id} className="card" style={{ padding: "1rem" }}>
             <div className="row" style={{ marginBottom: "0.35rem" }}>
-              <span className="badge badge-example">{reply.isStaff ? "客服" : "我"}</span>
+              <span className="badge badge-example">{reply.isStaff ? zh.shop.staff : zh.shop.me}</span>
               <span className="muted" style={{ fontSize: "0.8rem" }}>
                 {reply.createdAt.toISOString().replace("T", " ").slice(0, 19)}
               </span>

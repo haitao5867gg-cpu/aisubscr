@@ -1,5 +1,6 @@
 import { randomInt } from "crypto";
 import type { Prisma } from "@prisma/client";
+import type { Dict } from "@/i18n";
 import { zh } from "@/i18n/zh";
 import { findUserByEmail, hashPassword, verifyPassword } from "./auth";
 import { prisma } from "./db";
@@ -12,16 +13,18 @@ const MIN_INTERVAL_MS = 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_PER_HOUR = 5;
 
-export const resetMessages = {
-  sent: (email: string) => zh.auth.codeSent.replaceAll("{email}", email),
-  notRegistered: zh.auth.notRegistered,
-  sendFailed: zh.auth.sendFailed,
-  rateLimited: zh.auth.rateLimited,
-  invalidCode: zh.auth.invalidCode,
-  resetDone: zh.auth.resetDone,
-  passwordRequired: zh.auth.passwordRequired,
-  emailInvalid: zh.auth.emailInvalid,
-} as const;
+export function resetMessages(dict: Dict = zh) {
+  return {
+    sent: (email: string) => dict.auth.codeSent.replaceAll("{email}", email),
+    notRegistered: dict.auth.notRegistered,
+    sendFailed: dict.auth.sendFailed,
+    rateLimited: dict.auth.rateLimited,
+    invalidCode: dict.auth.invalidCode,
+    resetDone: dict.auth.resetDone,
+    passwordRequired: dict.auth.passwordRequired,
+    emailInvalid: dict.auth.emailInvalid,
+  };
+}
 
 export type PasswordResetRequestResult =
   | { status: "sent"; email: string }

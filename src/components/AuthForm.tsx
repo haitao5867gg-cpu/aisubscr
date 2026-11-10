@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 
 export function AuthForm({
   mode,
@@ -14,6 +14,7 @@ export function AuthForm({
   next?: string;
   initialEmail?: string;
 }) {
+  const zh = useDict();
   const router = useRouter();
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
@@ -23,43 +24,72 @@ export function AuthForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError("");
-    const res = await fetch(mode === "login" ? "/api/auth/login" : "/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(mode === "login" ? { email, password } : { email, password, name }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    if (!res.ok) {
-      setError(data.error || "失败");
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError(zh.auth.emailInvalid);
       return;
     }
-    const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/";
-    router.push(dest);
-    router.refresh();
+    if (!password) {
+      setError(zh.common.fieldRequired);
+      return;
+    }
+    if (mode === "register" && password.length < 6) {
+      setError(zh.auth.passwordShort);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(mode === "login" ? "/api/auth/login" : "/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mode === "login" ? { email: trimmed, password } : { email: trimmed, password, name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data.error === "string" && data.error ? data.error : zh.common.requestFailed);
+        return;
+      }
+      const dest = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      router.push(dest);
+      router.refresh();
+    } catch {
+      setError(zh.common.requestFailed);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <form onSubmit={onSubmit} className="card stack auth-card">
-      <h1 className="page-title">{mode === "login" ? zh.auth.loginTitle : zh.auth.registerTitle}</h1>
+    <form onSubmit={onSubmit} noValidate className="card stack auth-card">
       {mode === "register" && (
         <div>
-          <label className="label">{zh.auth.name}</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="label" htmlFor="auth-name">{zh.auth.name}</label>
+          <input id="auth-name" className="input" autoComplete="nickname" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
       )}
       <div>
-        <label className="label">{zh.auth.email}</label>
-        <input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <label className="label" htmlFor="auth-email">{zh.auth.email}</label>
+        <input
+          id="auth-email"
+          className="input"
+          type="email"
+          autoComplete="email"
+          required
+          aria-invalid={Boolean(error)}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
       </div>
       <div>
-        <label className="label">{zh.auth.password}</label>
+        <label className="label" htmlFor="auth-password">{zh.auth.password}</label>
         <input
+          id="auth-password"
           className="input"
           type="password"
+          autoComplete={mode === "login" ? "current-password" : "new-password"}
           required
+          aria-invalid={Boolean(error)}
           minLength={mode === "register" ? 6 : undefined}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -72,7 +102,7 @@ export function AuthForm({
           </p>
         )}
       </div>
-      {error && <div className="alert" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>{error}</div>}
+      {error && <div className="alert alert-danger" role="alert">{error}</div>}
       <button className="btn btn-primary" disabled={loading} type="submit">
         {loading ? zh.common.loading : mode === "login" ? zh.auth.loginTitle : zh.auth.registerTitle}
       </button>

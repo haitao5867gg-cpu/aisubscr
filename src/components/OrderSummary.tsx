@@ -1,8 +1,9 @@
 import { formatRmb } from "@/lib/money";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { StatusBadge } from "./StatusBadge";
 
-export function OrderSummary({
+export async function OrderSummary({
   orderNo,
   status,
   totalCents,
@@ -27,6 +28,7 @@ export function OrderSummary({
     isSubscription: boolean;
   }[];
 }) {
+  const zh = getDict(await getLocale());
   return (
     <aside className="card summary-card stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -35,7 +37,7 @@ export function OrderSummary({
       </div>
       <div className="muted" style={{ fontSize: "0.85rem" }}>
         {orderNo}
-        {isRenewal ? " · 续费单" : ""}
+        {isRenewal ? ` · ${zh.shop.renewalTag}` : ""}
       </div>
       {items.map((item) => (
         <div key={item.id} className="money-row">

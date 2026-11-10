@@ -1,6 +1,8 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SupportFab } from "@/components/SupportFab";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { prisma } from "@/lib/db";
 
 // Layout always reads the database (and the header reads the session).
@@ -9,11 +11,17 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function ShopLayout({ children }: { children: React.ReactNode }) {
-  const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
+  const [settings, t] = await Promise.all([
+    prisma.siteSetting.findUnique({ where: { id: "default" } }),
+    getLocale().then((locale) => getDict(locale)),
+  ]);
   return (
     <>
+      <a className="skip-link" href="#main">
+        {t.common.skipToContent}
+      </a>
       <Header />
-      <main className="container" style={{ paddingTop: "1.75rem", paddingBottom: "3rem", minHeight: "70vh" }}>
+      <main id="main" className="container main-pad" style={{ paddingTop: "1.75rem", minHeight: "70vh" }}>
         {children}
       </main>
       <Footer />

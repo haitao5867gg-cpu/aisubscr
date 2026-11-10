@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -8,11 +9,20 @@ import { OrderTimeline } from "@/components/OrderTimeline";
 import { OrderSummary } from "@/components/OrderSummary";
 import { SupportFab } from "@/components/SupportFab";
 import { StatusBadge } from "@/components/StatusBadge";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const { token } = await params;
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.orderTitle, description: t.shop.publicNote, path: `/order/${token}`, index: false });
+}
+
 export default async function PublicOrderPage({ params }: { params: Promise<{ token: string }> }) {
+  const zh = getDict(await getLocale());
   const { token } = await params;
   const order = await prisma.order.findFirst({
     where: { publicToken: token },
@@ -32,8 +42,11 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
 
   return (
     <>
+      <a className="skip-link" href="#main">
+        {zh.common.skipToContent}
+      </a>
       <Header />
-      <main className="container" style={{ paddingTop: "1.75rem", paddingBottom: "3rem", minHeight: "70vh" }}>
+      <main id="main" className="container main-pad" style={{ paddingTop: "1.75rem", minHeight: "70vh" }}>
         <div className="stack">
           <div>
             <p className="eyebrow">{zh.shop.publicNote}</p>
@@ -61,13 +74,13 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
                 <h2 style={{ margin: 0, fontSize: "1.1rem" }}>{zh.shop.supportCard}</h2>
                 <p className="muted" style={{ margin: 0 }}>
                   {zh.support.email}：
-                  <a href={`mailto:${supportEmail}`} style={{ color: "var(--primary)" }}>
+                  <a href={`mailto:${supportEmail}`} className="text-link">
                     {supportEmail}
                   </a>
                   <br />
                   {zh.support.hours}：{supportHours}
                 </p>
-                {!order.tickets.length && <p className="muted">暂无工单。登录后可在订单页提交售后。</p>}
+                {!order.tickets.length && <p className="muted">{zh.shop.noPublicTickets}</p>}
                 {order.tickets.map((ticket) => (
                   <div key={ticket.id} style={{ borderTop: "1px solid var(--border-soft)", paddingTop: "0.75rem" }}>
                     <div className="row" style={{ justifyContent: "space-between" }}>
@@ -76,13 +89,13 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
                     </div>
                     {ticket.replies.map((reply) => (
                       <div key={reply.id} style={{ marginTop: "0.45rem", fontSize: "0.92rem" }}>
-                        <span className="badge badge-example">{reply.isStaff ? "客服" : "用户"}</span> {reply.body}
+                        <span className="badge badge-example">{reply.isStaff ? zh.shop.staff : zh.shop.customer}</span> {reply.body}
                       </div>
                     ))}
                   </div>
                 ))}
                 <Link href="/login?next=/orders" className="btn btn-secondary">
-                  登录后提交售后
+                  {zh.shop.loginForTicket}
                 </Link>
               </section>
             </div>

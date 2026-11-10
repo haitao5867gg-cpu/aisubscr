@@ -10,11 +10,29 @@ const securityHeaders = [
   },
 ];
 
+const longCache = [
+  { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+  { key: "CDN-Cache-Control", value: "public, max-age=31536000" },
+];
+
+const publicCache = [
+  { key: "Cache-Control", value: "public, max-age=2592000, stale-while-revalidate=31536000" },
+  { key: "CDN-Cache-Control", value: "public, max-age=2592000" },
+];
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["nodemailer"],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/_next/static/:path*", headers: longCache },
+      { source: "/_next/image", headers: publicCache },
+      {
+        source: "/:file(favicon.ico|icon.svg|apple-icon.png|og.png|robots.txt|sitemap.xml|manifest.webmanifest)",
+        headers: publicCache,
+      },
+      { source: "/:path*", headers: securityHeaders },
+    ];
   },
 };
 

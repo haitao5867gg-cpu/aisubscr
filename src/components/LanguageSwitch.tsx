@@ -1,30 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDict, useLocale } from "./LocaleProvider";
 
-/** Minimal 中文/English switch stored in localStorage for later i18n wiring */
 export function LanguageSwitch() {
-  const [locale, setLocale] = useState<"zh" | "en">("zh");
-  useEffect(() => {
-    const saved = (localStorage.getItem("aisubscr-locale") as "zh" | "en") || "zh";
-    setLocale(saved);
-    document.documentElement.lang = saved === "en" ? "en" : "zh-CN";
-  }, []);
+  const locale = useLocale();
+  const zh = useDict();
 
   function pick(next: "zh" | "en") {
-    localStorage.setItem("aisubscr-locale", next);
-    setLocale(next);
-    document.documentElement.lang = next === "en" ? "en" : "zh-CN";
-    // Soft reload so server components can later read cookie/locale if wired
-    window.dispatchEvent(new Event("aisubscr-locale"));
+    if (next === locale) return;
+    document.cookie = `aisubscr-locale=${next}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    try {
+      localStorage.setItem("aisubscr-locale", next);
+    } catch {
+      /* private mode */
+    }
+    window.location.reload();
   }
 
   return (
-    <div className="lang-switch" aria-label="Language">
-      <button type="button" className={locale === "zh" ? "active" : ""} onClick={() => pick("zh")} style={{ background: "none", border: 0, cursor: "pointer", color: "inherit", font: "inherit" }}>
+    <div className="lang-switch" role="group" aria-label={zh.common.language}>
+      <button type="button" className={locale === "zh" ? "active" : ""} onClick={() => pick("zh")} aria-pressed={locale === "zh"}>
         中文
       </button>
-      <button type="button" className={locale === "en" ? "active" : ""} onClick={() => pick("en")} style={{ background: "none", border: 0, cursor: "pointer", color: "inherit", font: "inherit" }}>
+      <button type="button" className={locale === "en" ? "active" : ""} onClick={() => pick("en")} aria-pressed={locale === "en"}>
         English
       </button>
     </div>

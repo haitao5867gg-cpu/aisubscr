@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
@@ -28,10 +30,13 @@ const addSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const t = getDict(await getLocale());
   const session = await getSession();
-  const body = addSchema.parse(await req.json());
+  const parsed = addSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: t.shop.cartUpdateFailed }, { status: 400 });
+  const body = parsed.data;
   const product = await prisma.product.findFirst({ where: { id: body.productId, active: true } });
-  if (!product) return NextResponse.json({ error: "商品不存在" }, { status: 404 });
+  if (!product) return NextResponse.json({ error: t.shop.productMissing }, { status: 404 });
   const cart = session.cart || [];
   const existing = cart.find((c) => c.productId === body.productId);
   if (existing) existing.quantity += body.quantity;
@@ -42,10 +47,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const t = getDict(await getLocale());
   const session = await getSession();
-  const body = z
+  const parsed = z
     .object({ productId: z.string(), quantity: z.number().int().min(0) })
-    .parse(await req.json());
+    .safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: t.shop.cartUpdateFailed }, { status: 400 });
+  const body = parsed.data;
   let cart = session.cart || [];
   if (body.quantity === 0) cart = cart.filter((c) => c.productId !== body.productId);
   else {

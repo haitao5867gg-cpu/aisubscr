@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 import { normalizeEmail } from "@/lib/email";
 
 const REDIRECT_DELAY_MS = 1400;
@@ -16,6 +16,7 @@ function registerHref(email: string, next: string) {
 }
 
 export function ForgotPasswordForm({ loginHref, next }: { loginHref: string; next: string }) {
+  const zh = useDict();
   const router = useRouter();
   const redirectTimer = useRef<number | null>(null);
   const [step, setStep] = useState<"request" | "confirm" | "done">("request");
@@ -91,7 +92,6 @@ export function ForgotPasswordForm({ loginHref, next }: { loginHref: string; nex
   if (step === "done") {
     return (
       <div className="card stack auth-card">
-        <h1 className="page-title">{zh.auth.forgotTitle}</h1>
         <div className="alert alert-info">{info}</div>
         <Link className="btn btn-primary" href={loginHref}>
           {zh.auth.backToLogin}
@@ -101,11 +101,11 @@ export function ForgotPasswordForm({ loginHref, next }: { loginHref: string; nex
   }
 
   return (
-    <form onSubmit={step === "request" ? sendCode : reset} className="card stack auth-card">
-      <h1 className="page-title">{zh.auth.forgotTitle}</h1>
+    <form onSubmit={step === "request" ? sendCode : reset} noValidate className="card stack auth-card">
       <div>
-        <label className="label">{zh.auth.email}</label>
+        <label className="label" htmlFor="reset-email">{zh.auth.email}</label>
         <input
+          id="reset-email"
           className="input"
           type="email"
           required
@@ -118,8 +118,9 @@ export function ForgotPasswordForm({ loginHref, next }: { loginHref: string; nex
       {step === "confirm" && (
         <>
           <div>
-            <label className="label">{zh.auth.code}</label>
+            <label className="label" htmlFor="reset-code">{zh.auth.code}</label>
             <input
+              id="reset-code"
               className="input"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -131,8 +132,9 @@ export function ForgotPasswordForm({ loginHref, next }: { loginHref: string; nex
             />
           </div>
           <div>
-            <label className="label">{zh.auth.newPassword}</label>
+            <label className="label" htmlFor="reset-password">{zh.auth.newPassword}</label>
             <input
+              id="reset-password"
               className="input"
               type="password"
               required
@@ -145,7 +147,7 @@ export function ForgotPasswordForm({ loginHref, next }: { loginHref: string; nex
       )}
       {info && <div className="alert alert-info">{info}</div>}
       {error && (
-        <div className="alert" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
+        <div className="alert alert-danger" role="alert">
           {error}
         </div>
       )}

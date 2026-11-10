@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 
-export function AccountFrame({
+export async function AccountFrame({
   current,
   children,
 }: {
   current: "home" | "orders" | "tickets";
   children: React.ReactNode;
 }) {
+  const zh = getDict(await getLocale());
   const items = [
     { id: "home" as const, href: "/account", label: zh.nav.account },
     { id: "orders" as const, href: "/orders", label: zh.nav.orders },
