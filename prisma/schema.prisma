@@ -23,6 +23,8 @@ model User {
   passwordResetCode PasswordResetCode?
   emailChangeCode EmailChangeCode?
   auditLogs      AuditLog[]
+  couponRedemptions CouponRedemption[]
+  couponUsages   CouponUserUsage[]
 }
 
 /// One active password-reset code per user. The code is stored hashed.
@@ -78,8 +80,15 @@ model Order {
   publicToken     String   @unique @default(cuid())
   userId          String
   user            User     @relation(fields: [userId], references: [id])
-  status          String   @default("PENDING") // PENDING | PAYING | PAID | COMPLETED | REFUNDING | REFUNDED | CANCELLED | FAILED
+  status          String   @default("PENDING") // PENDING | PAYING | PAID | COMPLETED | REFUNDING | REFUNDED | CANCELLED | FAILED | EXPIRED
+  subtotalCents   Int      @default(0)
+  discountCents   Int      @default(0)
   totalCents      Int
+  couponCode      String?
+  /// Snapshot of Coupon.id. Not a foreign key so a retired code can be removed after its redemptions are gone.
+  couponId        String?
+  /// Unpaid orders past this instant are expired and their stock and coupon hold are released.
+  expiresAt       DateTime?
   paymentMethod   String?  // WECHAT | ALIPAY | MOCK
   paymentProvider String?
   paidAt          DateTime?
@@ -89,6 +98,9 @@ model Order {
   updatedAt       DateTime @updatedAt
   items           OrderItem[]
   tickets         Ticket[]
+  redemption      CouponRedemption?
+
+  @@index([status, expiresAt])
 }
 
 /// One row per provider event. Retries of the same event do not pay twice.
@@ -172,12 +184,79 @@ model AuditLog {
 }
 
 model SiteSetting {
-  id           String   @id @default("default")
-  siteName     String   @default("aisubscr")
-  supportEmail String   @default("support@example.com")
-  supportHours String   @default("08:00–23:00")
-  footerText   String   @default("示例数字商品商城框架 · 仅供演示")
-  updatedAt    DateTime @updatedAt
+  id                   String   @id @default("default")
+  siteName             String   @default("aisubscr")
+  supportEmail         String   @default("support@example.com")
+  supportHours         String   @default("08:00–23:00")
+  footerText           String   @default("示例数字商品商城框架 · 仅供演示")
+  wechatId             String   @default("")
+  qq                   String   @default("")
+  /// Empty means the contact page uses supportEmail.
+  contactEmail         String   @default("")
+  qrImageMime          String?
+  /// Base64 image bytes. Never returned from the public settings JSON.
+  qrImageData          String?
+  announcementText     String   @default("")
+  announcementEnabled  Boolean  @default(false)
+  /// Minutes before an unpaid order expires. Ignored when ORDER_EXPIRE_MINUTES is set.
+  orderExpireMinutes   Int      @default(30)
+  updatedAt            DateTime @updatedAt
+}
+
+/// Promo code. Usage is reserved in the same transaction that creates the order.
+model Coupon {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  kind           String   // PERCENT | FIXED
+  percentOff     Int?
+  amountCents    Int?
+  minOrderCents  Int      @default(0)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  maxUses        Int?
+  maxUsesPerUser Int?
+  usedCount      Int      @default(0)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  redemptions    CouponRedemption[]
+  userUsages     CouponUserUsage[]
+}
+
+/// Per-user counter updated with a conditional increment so concurrent checkouts cannot pass the cap.
+model CouponUserUsage {
+  couponId  String
+  userId    String
+  usedCount Int      @default(0)
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, userId])
+}
+
+model CouponRedemption {
+  id            String    @id @default(cuid())
+  couponId      String
+  coupon        Coupon    @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  orderId       String    @unique
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  discountCents Int
+  releasedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([couponId, userId])
+}
+
+model FaqEntry {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  sortOrder Int      @default(0)
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model BlogPost {

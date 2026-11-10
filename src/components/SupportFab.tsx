@@ -32,7 +32,10 @@ export function SupportFab({ supportEmail, supportHours }: { supportEmail: strin
             {zh.support.hours}：{supportHours}
           </div>
           <div className="row">
-            <Link href="/tickets" className="btn btn-primary" onClick={() => setOpen(false)}>
+            <Link href="/contact" className="btn btn-primary" onClick={() => setOpen(false)}>
+              {zh.footer.contact}
+            </Link>
+            <Link href="/tickets" className="btn btn-secondary" onClick={() => setOpen(false)}>
               {zh.nav.tickets}
             </Link>
             <Link href="/orders" className="btn btn-secondary" onClick={() => setOpen(false)}>

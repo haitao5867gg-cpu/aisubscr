@@ -1,3 +1,4 @@
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { SupportFab } from "@/components/SupportFab";
@@ -21,6 +22,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         {t.common.skipToContent}
       </a>
       <Header />
+      <AnnouncementBanner />
       <main id="main" className="container main-pad" style={{ paddingTop: "1.75rem", minHeight: "70vh" }}>
         {children}
       </main>

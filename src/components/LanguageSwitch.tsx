@@ -20,10 +20,10 @@ export function LanguageSwitch() {
   return (
     <div className="lang-switch" role="group" aria-label={zh.common.language}>
       <button type="button" className={locale === "zh" ? "active" : ""} onClick={() => pick("zh")} aria-pressed={locale === "zh"}>
-        中文
+        {zh.common.zhLabel}
       </button>
       <button type="button" className={locale === "en" ? "active" : ""} onClick={() => pick("en")} aria-pressed={locale === "en"}>
-        English
+        {zh.common.enLabel}
       </button>
     </div>
   );

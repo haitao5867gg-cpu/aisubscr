@@ -7,21 +7,22 @@ import { createOrderFromItems } from "@/lib/orders";
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const t = getDict(await getLocale());
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    return NextResponse.json({ error: t.api.loginRequired }, { status: 401 });
   }
   const parent = await prisma.order.findFirst({
     where: { id, userId: session.userId },
     include: { items: true },
   });
-  if (!parent) return NextResponse.json({ error: "订单不存在" }, { status: 404 });
+  if (!parent) return NextResponse.json({ error: t.api.orderMissing }, { status: 404 });
   if (!["PAID", "COMPLETED"].includes(parent.status)) {
-    return NextResponse.json({ error: "仅已支付/已完成订单可续费" }, { status: 400 });
+    return NextResponse.json({ error: t.api.renewNotAllowed }, { status: 400 });
   }
   const subItems = parent.items.filter((i) => i.isSubscription);
   if (!subItems.length) {
-    return NextResponse.json({ error: "该订单不含可续费商品" }, { status: 400 });
+    return NextResponse.json({ error: t.api.renewNoSubscription }, { status: 400 });
   }
   try {
     const order = await createOrderFromItems(
@@ -31,7 +32,6 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     );
     return NextResponse.json({ order });
   } catch (error) {
-    const t = getDict(await getLocale());
     const code = error instanceof Error ? error.message : "";
     if (code === "OUT_OF_STOCK") return NextResponse.json({ error: t.shop.outOfStock }, { status: 400 });
     if (code === "PRODUCT_NOT_FOUND") return NextResponse.json({ error: t.shop.productMissing }, { status: 400 });

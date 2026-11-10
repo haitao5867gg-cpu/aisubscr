@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useDict } from "@/components/LocaleProvider";
 
-export function CheckoutButton({ label }: { label?: string }) {
+export function CheckoutButton({ label, couponCode }: { label?: string; couponCode?: string }) {
   const zh = useDict();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -20,7 +20,11 @@ export function CheckoutButton({ label }: { label?: string }) {
           setBusy(true);
           setError("");
           try {
-            const res = await fetch("/api/orders", { method: "POST" });
+            const res = await fetch("/api/orders", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ couponCode: couponCode?.trim() || undefined }),
+            });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
               setError(typeof data.error === "string" && data.error ? data.error : zh.shop.orderFailed);

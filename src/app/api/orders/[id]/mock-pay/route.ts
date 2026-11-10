@@ -36,6 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ ok: true, redirect: `/orders/${id}?paid=1`, duplicate: result.duplicate });
 }
 
-export function GET() {
-  return NextResponse.json({ error: "请使用支付页面完成模拟支付" }, { status: 405 });
+export async function GET() {
+  const t = getDict(await getLocale());
+  return NextResponse.json({ error: t.api.mockPayPage }, { status: 405 });
 }

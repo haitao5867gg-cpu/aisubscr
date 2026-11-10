@@ -7,6 +7,9 @@ export async function OrderSummary({
   orderNo,
   status,
   totalCents,
+  subtotalCents,
+  discountCents = 0,
+  couponCode,
   paymentMethod,
   paymentProvider,
   isRenewal,
@@ -16,6 +19,9 @@ export async function OrderSummary({
   orderNo: string;
   status: string;
   totalCents: number;
+  subtotalCents?: number;
+  discountCents?: number;
+  couponCode?: string | null;
   paymentMethod?: string | null;
   paymentProvider?: string | null;
   isRenewal?: boolean;
@@ -48,6 +54,21 @@ export async function OrderSummary({
           <strong>{formatRmb(item.unitPriceCents * item.quantity)}</strong>
         </div>
       ))}
+      {discountCents > 0 && (
+        <>
+          <div className="money-row">
+            <span className="muted">{zh.order.subtotal}</span>
+            <span>{formatRmb(subtotalCents ?? totalCents + discountCents)}</span>
+          </div>
+          <div className="money-row">
+            <span className="muted">
+              {zh.order.discount}
+              {couponCode ? ` · ${couponCode}` : ""}
+            </span>
+            <strong>-{formatRmb(discountCents)}</strong>
+          </div>
+        </>
+      )}
       <div className="money-row" style={{ borderTop: "1px solid var(--border-soft)", paddingTop: "0.75rem" }}>
         <span className="muted">{zh.shop.payable}</span>
         <strong className="plan-price" style={{ fontSize: "1.45rem" }}>

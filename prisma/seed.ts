@@ -120,6 +120,30 @@ async function main() {
     });
   }
 
+  const faqCount = await prisma.faqEntry.count();
+  if (faqCount === 0) {
+    await prisma.faqEntry.create({
+      data: {
+        question: "支付会真实扣款吗？",
+        answer: "不会。当前没有商户凭证，微信和支付宝都走到模拟支付。",
+        sortOrder: 0,
+        published: true,
+      },
+    });
+  }
+
+  await prisma.coupon.upsert({
+    where: { code: "WELCOME10" },
+    update: {},
+    create: {
+      code: "WELCOME10",
+      kind: "PERCENT",
+      percentOff: 10,
+      minOrderCents: 0,
+      active: true,
+    },
+  });
+
   console.log("Seed complete. Admin credentials written to ADMIN_CREDENTIALS.txt");
 }
 

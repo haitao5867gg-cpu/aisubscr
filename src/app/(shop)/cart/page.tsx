@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { formatRmb } from "@/lib/money";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
-import { CheckoutButton } from "@/components/CheckoutButton";
+import { CheckoutSummary } from "@/components/CheckoutSummary";
 import { CartLineControls } from "@/components/CartLineControls";
 import { pageMeta } from "@/lib/seo";
 
@@ -108,20 +108,7 @@ export default async function CartPage() {
                 <span>{formatRmb(item.line)}</span>
               </div>
             ))}
-            <div className="money-row" style={{ borderTop: "1px solid var(--border-soft)", paddingTop: "0.75rem" }}>
-              <span>{zh.shop.payable}</span>
-              <strong className="plan-price" style={{ fontSize: "1.45rem" }}>
-                {formatRmb(total)}
-              </strong>
-            </div>
-            <div className="alert alert-mock">{zh.payment.mockNote}</div>
-            {loggedIn ? (
-              <CheckoutButton label={zh.shop.placeOrder} />
-            ) : (
-              <Link href="/login?next=/cart" className="btn btn-primary">
-                {zh.shop.loginToPlace}
-              </Link>
-            )}
+            <CheckoutSummary subtotalCents={total} loggedIn={loggedIn} />
           </aside>
         </div>
       )}

@@ -1,6 +1,8 @@
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { prisma } from "./db";
 
 export type SessionData = {
@@ -120,13 +122,14 @@ export async function requireAdmin() {
 }
 
 /** Map requireAdmin failures to HTTP responses. Other errors propagate. */
-export function adminAuthResponse(error: unknown): NextResponse | null {
+export async function adminAuthResponse(error: unknown): Promise<NextResponse | null> {
   if (!(error instanceof Error)) return null;
+  const t = getDict(await getLocale());
   if (error.message === "UNAUTHORIZED") {
-    return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    return NextResponse.json({ error: t.api.loginRequired }, { status: 401 });
   }
   if (error.message === "FORBIDDEN") {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+    return NextResponse.json({ error: t.api.forbidden }, { status: 403 });
   }
   return null;
 }

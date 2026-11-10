@@ -15,7 +15,7 @@ export async function OrderTimeline({ status }: { status: string }) {
   if (status === "PAID") current = 2;
   if (status === "COMPLETED") current = 3;
   if (status === "REFUNDED" || status === "REFUNDING") current = 2;
-  if (status === "FAILED" || status === "CANCELLED") current = 1;
+  if (status === "FAILED" || status === "CANCELLED" || status === "EXPIRED") current = 1;
 
   return (
     <div className="card" style={{ padding: "1.15rem 1.2rem" }}>
@@ -31,9 +31,9 @@ export async function OrderTimeline({ status }: { status: string }) {
           );
         })}
       </ol>
-      {(status === "REFUNDED" || status === "REFUNDING" || status === "FAILED" || status === "CANCELLED") && (
+      {(status === "REFUNDED" || status === "REFUNDING" || status === "FAILED" || status === "CANCELLED" || status === "EXPIRED") && (
         <div className="alert alert-warn" style={{ marginTop: "0.85rem" }}>
-          {(zh.order.status as Record<string, string>)[status] || status}
+          {status === "EXPIRED" ? zh.order.timeline.expired : (zh.order.status as Record<string, string>)[status] || status}
         </div>
       )}
     </div>

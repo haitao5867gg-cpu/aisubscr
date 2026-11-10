@@ -375,6 +375,33 @@ h1, h2, h3, h4 { line-height: 1.3; font-weight: 700; color: var(--text); }
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 1.5rem;
 }
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.9rem;
+}
+.announce {
+  background: var(--cream);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.announce-inner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem var(--pad-x);
+}
+.announce-inner p { margin: 0; line-height: 1.5; }
+.review-banner {
+  background: var(--warning-soft);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.9rem;
+  line-height: 1.6;
+}
 
 /* Shop layout — commerce structure, same tokens as above. */
 
@@ -857,6 +884,10 @@ h1, h2, h3, h4 { line-height: 1.3; font-weight: 700; color: var(--text); }
 .empty-state p { margin: 0; }
 .main-pad { padding-bottom: 5.5rem; }
 
+@media (max-width: 420px) {
+  .announce-inner { flex-direction: column; }
+  .footer-links { gap: 0.5rem 0.85rem; }
+}
 @media (max-width: 720px) {
   .header-bar { gap: 0.45rem; }
   .brand { font-size: 0.98rem; min-width: 0; }

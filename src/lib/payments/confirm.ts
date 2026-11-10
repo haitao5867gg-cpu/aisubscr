@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { deliverOrderPaid } from "../mail/notices";
+import { expireOrderIfDue } from "../order-expiry";
 import { logApiError } from "../server-log";
 
 const PAYABLE = ["PENDING", "PAYING"] as const;
@@ -82,6 +83,10 @@ export async function confirmOrderPayment(input: ConfirmPaymentInput): Promise<C
       if ((SETTLED as readonly string[]).includes(order.status)) {
         await tx.paymentNotice.create({ data: { ...notice, outcome: "DUPLICATE" } });
         return { ok: true, orderId: order.id, status: order.status, applied: false, duplicate: true };
+      }
+      if (await expireOrderIfDue(tx, order)) {
+        await tx.paymentNotice.create({ data: { ...notice, outcome: "REJECTED" } });
+        return { ok: false, reason: "STATE" };
       }
       if (!(PAYABLE as readonly string[]).includes(order.status)) {
         await tx.paymentNotice.create({ data: { ...notice, outcome: "REJECTED" } });

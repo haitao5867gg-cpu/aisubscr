@@ -48,7 +48,17 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
           <Link href={`/admin/users/${order.user.id}`}>{order.user.email}</Link>
           {order.user.name ? <span className="muted"> · {order.user.name}</span> : null}
         </div>
-        <div>{formatRmb(order.totalCents)}</div>
+        <div>
+          {order.discountCents > 0 && (
+            <div className="muted">
+              {zh.order.subtotal} {formatRmb(order.subtotalCents)} · {zh.order.discount}
+              {order.couponCode ? ` ${order.couponCode}` : ""} -{formatRmb(order.discountCents)}
+            </div>
+          )}
+          <div>
+            {zh.shop.payable} {formatRmb(order.totalCents)}
+          </div>
+        </div>
         <div className="muted">{formatShanghai(order.createdAt, locale)}</div>
         <div className="muted">
           {zh.admin.shareLink}：/order/{order.publicToken}

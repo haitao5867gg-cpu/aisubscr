@@ -17,7 +17,7 @@ export function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
-export function mailDocument(title: string, bodyHtml: string) {
+export function mailDocument(title: string, bodyHtml: string, footer: string) {
   const safeTitle = escapeHtml(title);
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -34,7 +34,7 @@ export function mailDocument(title: string, bodyHtml: string) {
       </td>
     </tr>
     <tr>
-      <td style="padding:14px 24px;background:${COLOR.cream};color:${COLOR.muted};font-size:12px;line-height:1.6;">这是一封事务邮件。示例商城不会创建或交付第三方账号。</td>
+      <td style="padding:14px 24px;background:${COLOR.cream};color:${COLOR.muted};font-size:12px;line-height:1.6;">${escapeHtml(footer)}</td>
     </tr>
   </table>
 </body>
