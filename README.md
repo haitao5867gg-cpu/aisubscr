@@ -103,6 +103,28 @@ src/app/globals.css  主题 CSS 变量（便于后续换肤）
 
 管理页面在服务端布局里检查登录和 `ADMIN`。管理 API 同样在处理数据前调用 `requireAdmin()`。角色每次从数据库读取，不单独信任 Cookie 里的旧角色。未登录返回 401，已登录但不是管理员返回 403。模拟支付完成改为仅订单本人可 POST，避免别人凭订单号把订单标成已支付。
 
+## 支付提供商
+
+默认 `PAYMENT_PROVIDER=mock`。结算页上的微信 / 支付宝只是记下支付方式，确认时仍走 `src/lib/payments/mock.ts`，不会扣款。
+
+订单状态：`PENDING` → `PAYING`（已发起支付）→ `PAID` → `COMPLETED`，以及 `REFUNDING` / `REFUNDED` / `CANCELLED` / `FAILED`。允许的流转在 `src/lib/payments/states.ts`。
+
+真实渠道以后接到同一接口上：
+
+- `PaymentProvider.createPayment` 创建支付
+- `verifyNotification` 先验签。微信 / 支付宝默认没有验签函数，通知一律拒绝
+- 商户代码调用 `setPaymentSignatureVerifier` 和 `setPaymentNotificationParser`
+- `POST /api/payments/notify/[provider]` 把验过的通知交给 `confirmOrderPayment`
+- 同一 `(provider, eventId)` 只会入账一次，记在 `PaymentNotice`
+
+模拟通知（仅当设置了 `PAYMENT_WEBHOOK_SECRET`）对原始 body 做 HMAC-SHA256，十六进制放在 `x-payment-signature`。Body 示例：`{"orderNo":"AS…","amountCents":9900,"eventId":"evt_1","method":"MOCK","success":true}`。
+
+占位变量见 `.env.example` 的 `PAYMENT_*`、`WECHAT_PAY_*`、`ALIPAY_*`。不要把真实商户密钥写进仓库。生产升级只跑 `npx prisma migrate deploy`（新增 `PaymentNotice`），不要 seed。
+
+## 给中国大陆访客的静态资源
+
+页面不引用 Google Fonts、Google 脚本、unpkg、jsdelivr 或 Gravatar。正文字体是系统字体（苹方、微软雅黑、Noto Sans SC 等），避免下载整套中文字体。`/_next/static` 使用带内容哈希的长期 `Cache-Control` 和 `CDN-Cache-Control`，方便 Cloudflare 缓存。HTML 带一次性 CSP nonce，响应是 `private, no-store`，边缘不要缓存页面。
+
 ## 环境变量
 
 见 `.env.example`。密码重置相关：

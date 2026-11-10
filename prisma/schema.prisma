@@ -72,7 +72,7 @@ model Order {
   publicToken     String   @unique @default(cuid())
   userId          String
   user            User     @relation(fields: [userId], references: [id])
-  status          String   @default("PENDING") // PENDING | PAID | COMPLETED | REFUNDED
+  status          String   @default("PENDING") // PENDING | PAYING | PAID | COMPLETED | REFUNDING | REFUNDED | CANCELLED | FAILED
   totalCents      Int
   paymentMethod   String?  // WECHAT | ALIPAY | MOCK
   paymentProvider String?
@@ -83,6 +83,20 @@ model Order {
   updatedAt       DateTime @updatedAt
   items           OrderItem[]
   tickets         Ticket[]
+}
+
+/// One row per provider event. Retries of the same event do not pay twice.
+model PaymentNotice {
+  id              String   @id @default(cuid())
+  provider        String
+  providerEventId String
+  orderNo         String
+  amountCents     Int
+  outcome         String // APPLIED | DUPLICATE | REJECTED
+  createdAt       DateTime @default(now())
+
+  @@unique([provider, providerEventId])
+  @@index([orderNo])
 }
 
 model OrderItem {

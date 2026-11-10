@@ -1,16 +1,18 @@
 import { prisma } from "@/lib/db";
 import { AdminSettingsForm } from "@/components/AdminSettingsForm";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage() {
+  const zh = getDict(await getLocale());
   let settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
   if (!settings) settings = await prisma.siteSetting.create({ data: { id: "default" } });
   return (
     <div className="stack">
       <h1 className="page-title">{zh.admin.settings}</h1>
-      <p className="page-desc">页头站点名、页脚客服邮箱与服务时间可在此修改。</p>
+      <p className="page-desc">{zh.admin.settingsLead}</p>
       <AdminSettingsForm
         initial={{
           siteName: settings.siteName,

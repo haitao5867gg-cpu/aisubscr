@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/db";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TicketReplyForm } from "@/components/TicketReplyForm";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminTicketsPage() {
+  const zh = getDict(await getLocale());
   const tickets = await prisma.ticket.findMany({
     include: {
       user: { select: { email: true } },
@@ -17,6 +19,7 @@ export default async function AdminTicketsPage() {
   return (
     <div className="stack">
       <h1 className="page-title">{zh.admin.tickets}</h1>
+      {!tickets.length && <p className="muted">{zh.admin.empty}</p>}
       {tickets.map((t) => (
         <div key={t.id} className="card stack" style={{ padding: "1.1rem" }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
@@ -25,10 +28,10 @@ export default async function AdminTicketsPage() {
             </strong>
             <StatusBadge status={t.status} kind="ticket" />
           </div>
-          <div className="muted">订单 {t.order.orderNo}</div>
+          <div className="muted">{zh.shop.orderRef} {t.order.orderNo}</div>
           {t.replies.map((r) => (
             <div key={r.id} style={{ fontSize: "0.92rem" }}>
-              <span className="badge badge-example">{r.isStaff ? "客服" : "用户"}</span> {r.body}
+              <span className="badge badge-example">{r.isStaff ? zh.shop.staff : zh.shop.customer}</span> {r.body}
             </div>
           ))}
           <TicketReplyForm ticketId={t.id} admin />

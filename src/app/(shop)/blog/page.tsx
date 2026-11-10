@@ -1,11 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { ArticleSearch } from "@/components/ArticleSearch";
+import { EmptyState } from "@/components/EmptyState";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.blogTitle, description: t.seo.blogDescription, path: "/blog" });
+}
+
 export default async function BlogPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const zh = getDict(await getLocale());
   const { q } = await searchParams;
   const posts = await prisma.blogPost.findMany({
     where: {
@@ -29,20 +39,22 @@ export default async function BlogPage({ searchParams }: { searchParams: Promise
       <ArticleSearch />
       {q && (
         <p className="muted">
-          搜索：{q} · {posts.length} 篇
+          {zh.common.search}：{q} · {posts.length}
         </p>
       )}
-      {!posts.length && <p className="muted">{zh.blog.empty}</p>}
-      <div className="card">
-        {posts.map((post) => (
-          <Link key={post.id} href={`/blog/${post.slug}`} className="ledger-row">
-            <strong>{post.title}</strong>
-            <span className="muted">{post.summary}</span>
-            <span className="muted">{post.createdAt.toISOString().slice(0, 10)}</span>
-            <span className="muted">{zh.blog.readMore}</span>
-          </Link>
-        ))}
-      </div>
+      {!posts.length && <EmptyState title={zh.blog.empty} href={q ? "/blog" : undefined} action={q ? zh.shop.backBlog : undefined} />}
+      {posts.length > 0 && (
+        <div className="card">
+          {posts.map((post) => (
+            <Link key={post.id} href={`/blog/${post.slug}`} className="ledger-row">
+              <strong>{post.title}</strong>
+              <span className="muted">{post.summary}</span>
+              <span className="muted">{post.createdAt.toISOString().slice(0, 10)}</span>
+              <span className="muted">{zh.blog.readMore}</span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

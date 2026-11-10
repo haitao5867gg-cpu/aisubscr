@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { formatRmb } from "@/lib/money";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 
-export function PlanCard({
+export async function PlanCard({
   product,
 }: {
   product: {
@@ -13,10 +14,11 @@ export function PlanCard({
     isSubscription: boolean;
   };
 }) {
+  const zh = getDict(await getLocale());
   return (
     <article className={`card plan-card ${product.isSubscription ? "renewable" : ""}`}>
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h3 style={{ margin: 0, fontSize: "1.05rem" }}>{product.name}</h3>
+        <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{product.name}</h2>
         <span className={`badge ${product.isSubscription ? "badge-mock" : "badge-example"}`}>
           {product.isSubscription ? zh.product.subscription : zh.shop.oneTime}
         </span>

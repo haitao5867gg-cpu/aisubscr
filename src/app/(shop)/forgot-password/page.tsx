@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { pageMeta } from "@/lib/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.forgotTitle, description: t.seo.forgotDescription, path: "/forgot-password" });
+}
 
 function safeNext(next?: string) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/account";
@@ -12,6 +20,7 @@ export default async function ForgotPasswordPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
+  const zh = getDict(await getLocale());
   const { next } = await searchParams;
   const dest = safeNext(next);
   const loginHref = `/login?next=${encodeURIComponent(dest)}`;

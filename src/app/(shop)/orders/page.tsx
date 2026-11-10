@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
@@ -6,11 +7,20 @@ import { formatRmb } from "@/lib/money";
 import { formatDay, renewalDate } from "@/lib/renewal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AccountFrame } from "@/components/AccountFrame";
-import { zh } from "@/i18n/zh";
+import { EmptyState } from "@/components/EmptyState";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.ordersTitle, description: t.seo.ordersDescription, path: "/orders", index: false });
+}
+
 export default async function OrdersPage() {
+  const zh = getDict(await getLocale());
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect("/login?next=/orders");
   const orders = await prisma.order.findMany({
@@ -25,8 +35,8 @@ export default async function OrdersPage() {
         <h1 className="page-title">{zh.order.history}</h1>
         <p className="page-desc">{zh.shop.renewalNote}</p>
       </div>
-      {!orders.length && <p className="muted">暂无订单</p>}
-      <div className="card">
+      {!orders.length && <EmptyState title={zh.shop.noOrders} href="/products" action={zh.shop.emptyCta} />}
+      {orders.length > 0 && <div className="card">
         {orders.map((order) => {
           const renews = renewalDate(order);
           return (
@@ -34,7 +44,7 @@ export default async function OrdersPage() {
               <strong>{order.orderNo}</strong>
               <span className="muted">
                 {order.items.map((item) => item.productName).join("、")}
-                {order.isRenewal ? " · 续费单" : ""}
+                {order.isRenewal ? ` · ${zh.shop.renewalTag}` : ""}
                 {renews ? ` · ${zh.shop.nextRenewal} ${formatDay(renews)}` : ""}
               </span>
               <span>{formatRmb(order.totalCents)}</span>
@@ -42,7 +52,7 @@ export default async function OrdersPage() {
             </Link>
           );
         })}
-      </div>
+      </div>}
     </AccountFrame>
   );
 }

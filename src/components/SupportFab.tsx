@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 
 export function SupportFab({ supportEmail, supportHours }: { supportEmail: string; supportHours: string }) {
+  const zh = useDict();
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -15,7 +16,7 @@ export function SupportFab({ supportEmail, supportHours }: { supportEmail: strin
         <div className="fab-panel stack">
           <div className="row" style={{ justifyContent: "space-between" }}>
             <strong>{zh.ticket.fab}</strong>
-            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+            <button type="button" className="btn btn-ghost" aria-label={zh.common.close} onClick={() => setOpen(false)}>
               ✕
             </button>
           </div>

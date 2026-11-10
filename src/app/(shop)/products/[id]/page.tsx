@@ -1,12 +1,30 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { getSession } from "@/lib/session";
 import { PurchasePanel } from "@/components/PurchasePanel";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const [product, t] = await Promise.all([
+    prisma.product.findFirst({ where: { id, active: true } }),
+    getLocale().then((locale) => getDict(locale)),
+  ]);
+  const description = product?.description?.replace(/\s+/g, " ").slice(0, 160) || t.seo.productFallback;
+  return pageMeta({
+    title: product?.name || t.seo.productsTitle,
+    description,
+    path: `/products/${id}`,
+  });
+}
+
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const zh = getDict(await getLocale());
   const { id } = await params;
   const [product, session] = await Promise.all([
     prisma.product.findFirst({ where: { id, active: true } }),

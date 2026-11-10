@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 
 export function ArticleSearch() {
+  const zh = useDict();
   const [q, setQ] = useState("");
   const router = useRouter();
   return (

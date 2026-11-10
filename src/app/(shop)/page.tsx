@@ -1,12 +1,22 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatRmb } from "@/lib/money";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { PlanCard } from "@/components/PlanCard";
+import { EmptyState } from "@/components/EmptyState";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.homeTitle, description: t.seo.homeDescription, path: "/" });
+}
+
 export default async function HomePage() {
+  const zh = getDict(await getLocale());
   const [products, settings] = await Promise.all([
     prisma.product.findMany({
       where: { active: true },
@@ -50,7 +60,7 @@ export default async function HomePage() {
           </div>
           <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
             {zh.shop.guideLink}{" "}
-            <Link href="/blog" style={{ color: "var(--primary)" }}>
+            <Link href="/blog" className="text-link">
               {zh.home.ctaBlog}
             </Link>
           </p>
@@ -66,7 +76,7 @@ export default async function HomePage() {
               <span>{formatRmb(product.priceCents)}</span>
             </div>
           ))}
-          {!products.length && <p className="muted">暂无在售方案</p>}
+          {!products.length && <p className="muted">{zh.shop.noProducts}</p>}
           <Link href="/products" className="btn btn-primary" style={{ marginTop: "0.6rem" }}>
             {zh.home.ctaProducts}
           </Link>
@@ -76,11 +86,15 @@ export default async function HomePage() {
       <section className="shop-section">
         <h2 className="section-kicker">{zh.shop.featuredTitle}</h2>
         <p className="section-lead muted">{zh.shop.featuredLead}</p>
-        <div className="plan-grid">
-          {products.map((product) => (
-            <PlanCard key={product.id} product={product} />
-          ))}
-        </div>
+        {products.length ? (
+          <div className="plan-grid">
+            {products.map((product) => (
+              <PlanCard key={product.id} product={product} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState title={zh.shop.noProducts} />
+        )}
       </section>
 
       <section className="shop-section">
@@ -107,7 +121,7 @@ export default async function HomePage() {
             </p>
             <p style={{ marginBottom: "0.2rem" }}>
               <span className="muted">{zh.support.email}：</span>
-              <a href={`mailto:${supportEmail}`} style={{ color: "var(--primary)" }}>
+              <a href={`mailto:${supportEmail}`} className="text-link">
                 {supportEmail}
               </a>
             </p>

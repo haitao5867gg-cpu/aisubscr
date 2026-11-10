@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 
 export async function Footer() {
+  const zh = getDict(await getLocale());
   const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
   const year = new Date().getFullYear();
   const siteName = settings?.siteName || zh.siteName;

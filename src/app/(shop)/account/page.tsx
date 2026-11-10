@@ -1,16 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { formatRmb } from "@/lib/money";
 import { formatDay, renewalDate } from "@/lib/renewal";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { AccountFrame } from "@/components/AccountFrame";
 import { StatusBadge } from "@/components/StatusBadge";
+import { EmptyState } from "@/components/EmptyState";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.accountTitle, description: t.seo.accountDescription, path: "/account", index: false });
+}
+
 export default async function AccountPage() {
+  const zh = getDict(await getLocale());
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect("/login?next=/account");
 
@@ -50,7 +60,7 @@ export default async function AccountPage() {
             {zh.shop.viewAll}
           </Link>
         </div>
-        {!active.length && <p className="muted">{zh.shop.noActive}</p>}
+        {!active.length && <EmptyState title={zh.shop.noActive} href="/products" action={zh.shop.emptyCta} />}
         {active.length > 0 && (
           <div className="card">
             {active.map((order) => (
@@ -70,7 +80,7 @@ export default async function AccountPage() {
         <p className="muted" style={{ margin: 0 }}>
           {zh.shop.renewalNote}
         </p>
-        {!renewals.length && <p className="muted">{zh.shop.noRenewal}</p>}
+        {!renewals.length && <EmptyState title={zh.shop.noRenewal} />}
         {renewals.length > 0 && (
           <div className="card">
             {renewals.map(({ order, date }) => (
@@ -92,13 +102,13 @@ export default async function AccountPage() {
             {zh.shop.viewAll}
           </Link>
         </div>
-        {!tickets.length && <p className="muted">暂无工单，可在订单详情页提交售后。</p>}
+        {!tickets.length && <EmptyState title={zh.shop.noTickets} href="/orders" action={zh.nav.orders} />}
         {tickets.length > 0 && (
           <div className="card">
             {tickets.map((ticket) => (
               <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="ledger-row">
                 <strong>{ticket.subject}</strong>
-                <span className="muted">订单 {ticket.order.orderNo}</span>
+                <span className="muted">{zh.shop.orderRef} {ticket.order.orderNo}</span>
                 <span />
                 <StatusBadge status={ticket.status} kind="ticket" />
               </Link>

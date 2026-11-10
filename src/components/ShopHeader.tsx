@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 import { LogoutButton } from "./LogoutButton";
 import { ThemeToggle } from "./ThemeToggle";
 import { LanguageSwitch } from "./LanguageSwitch";
@@ -21,6 +21,7 @@ export function ShopHeader({
   isAdmin: boolean;
   displayName?: string | null;
 }) {
+  const zh = useDict();
   const path = usePathname() || "/";
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [path]);
@@ -41,7 +42,7 @@ export function ShopHeader({
           </span>
           {siteName}
         </Link>
-        <nav className="header-nav" aria-label="主导航">
+        <nav className="header-nav" aria-label={zh.nav.home}>
           {links.map((link) => (
             <Link key={link.href} href={link.href} className={`nav-link ${link.on ? "active" : ""}`}>
               {link.label}
@@ -85,10 +86,10 @@ export function ShopHeader({
             type="button"
             className="btn btn-ghost menu-btn"
             aria-expanded={open}
-            aria-label="菜单"
+            aria-label={zh.common.menu}
             onClick={() => setOpen((value) => !value)}
           >
-            菜单
+            {zh.common.menu}
           </button>
         </div>
       </div>

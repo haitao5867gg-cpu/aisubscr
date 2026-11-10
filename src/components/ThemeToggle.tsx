@@ -1,9 +1,10 @@
 "use client";
 
 import { useTheme } from "./ThemeProvider";
-import { zh } from "@/i18n/zh";
+import { useDict } from "@/components/LocaleProvider";
 
 export function ThemeToggle() {
+  const zh = useDict();
   const { theme, setTheme } = useTheme();
   const next = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
   const label =

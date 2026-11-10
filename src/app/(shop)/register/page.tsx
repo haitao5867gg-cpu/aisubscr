@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthForm } from "@/components/AuthForm";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { pageMeta } from "@/lib/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.registerTitle, description: t.seo.registerDescription, path: "/register" });
+}
 import { normalizeEmail } from "@/lib/email";
 
 function safeNext(next?: string) {
@@ -20,6 +28,7 @@ export default async function RegisterPage({
 }: {
   searchParams: Promise<{ next?: string; email?: string }>;
 }) {
+  const zh = getDict(await getLocale());
   const { next, email } = await searchParams;
   const dest = safeNext(next);
   return (

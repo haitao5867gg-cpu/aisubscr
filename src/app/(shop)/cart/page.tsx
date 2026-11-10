@@ -1,14 +1,23 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { formatRmb } from "@/lib/money";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { CheckoutButton } from "@/components/CheckoutButton";
 import { CartLineControls } from "@/components/CartLineControls";
+import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.cartTitle, description: t.seo.cartDescription, path: "/cart" });
+}
+
 export default async function CartPage() {
+  const zh = getDict(await getLocale());
   const session = await getSession();
   const cart = session.cart || [];
   const products = cart.length

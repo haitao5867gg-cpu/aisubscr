@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthForm } from "@/components/AuthForm";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { pageMeta } from "@/lib/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getDict(await getLocale());
+  return pageMeta({ title: t.seo.loginTitle, description: t.seo.loginDescription, path: "/login" });
+}
 
 function safeNext(next?: string) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/account";
@@ -8,6 +16,7 @@ function safeNext(next?: string) {
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const zh = getDict(await getLocale());
   const { next } = await searchParams;
   const dest = safeNext(next);
   return (

@@ -1,9 +1,11 @@
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { ShopHeader } from "./ShopHeader";
 
 export async function Header() {
+  const zh = getDict(await getLocale());
   const session = await getSession();
   const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
   const cartCount = (session.cart || []).reduce((sum, item) => sum + item.quantity, 0);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { zh } from "@/i18n/zh";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { peekLoginLimit, recordLoginFailure } from "@/lib/auth-rate-limit";
 import { findUserByEmail, hashPassword, verifyPassword } from "@/lib/auth";
 import { clientIp } from "@/lib/client-ip";
@@ -20,15 +21,16 @@ function dummyPasswordCompare(password: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const t = getDict(await getLocale());
   let json: unknown;
   try {
     json = await req.json();
   } catch {
-    return NextResponse.json({ error: "登录失败" }, { status: 400 });
+    return NextResponse.json({ error: t.auth.loginFailed }, { status: 400 });
   }
   const parsed = schema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "邮箱或密码错误" }, { status: 400 });
+    return NextResponse.json({ error: t.auth.badCredentials }, { status: 400 });
   }
 
   const email = normalizeEmail(parsed.data.email);
@@ -37,7 +39,7 @@ export async function POST(req: NextRequest) {
     const limit = await peekLoginLimit(email, ip);
     if (limit.limited) {
       return NextResponse.json(
-        { error: zh.auth.loginRateLimited },
+        { error: t.auth.loginRateLimited },
         { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
       );
     }
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
       : await dummyPasswordCompare(parsed.data.password);
     if (!user || !passwordOk) {
       await recordLoginFailure(email, ip);
-      return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 });
+      return NextResponse.json({ error: t.auth.badCredentials }, { status: 401 });
     }
 
     const session = await getSession();
@@ -61,8 +63,8 @@ export async function POST(req: NextRequest) {
     if (!session.cart) session.cart = [];
     await session.save();
     return NextResponse.json({ ok: true, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "登录失败";
-    return NextResponse.json({ error: msg }, { status: 400 });
+  } catch {
+    console.error("[aisubscr] login failed");
+    return NextResponse.json({ error: t.auth.loginFailed }, { status: 400 });
   }
 }
