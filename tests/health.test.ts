@@ -61,7 +61,22 @@ it("skips the page CSP nonce", () => {
   const csp = page.headers.get("content-security-policy") ?? "";
   expect(csp).toContain("script-src");
   expect(csp).toContain("nonce-");
+  expect(csp).toContain("img-src 'self' blob: data:");
   expect(page.headers.get("x-request-id")).toBeTruthy();
+});
+
+it("adds the R2 image origin to img-src when the public base URL is set", () => {
+  const previous = process.env.R2_PUBLIC_BASE_URL;
+  process.env.R2_PUBLIC_BASE_URL = "https://cdn.example.com/shop";
+  try {
+    const page = middleware(new NextRequest("http://127.0.0.1/products"));
+    const csp = page.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("img-src 'self' blob: data: https://cdn.example.com");
+    expect(csp).not.toContain("https://cdn.example.com/shop");
+  } finally {
+    if (previous === undefined) delete process.env.R2_PUBLIC_BASE_URL;
+    else process.env.R2_PUBLIC_BASE_URL = previous;
+  }
 });
 
 function restore(key: string, value: string | undefined) {

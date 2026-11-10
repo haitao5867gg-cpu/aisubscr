@@ -22,7 +22,7 @@ const publicCache = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["nodemailer"],
+  serverExternalPackages: ["nodemailer", "sharp", "@aws-sdk/client-s3"],
   async redirects() {
     return [
       { source: "/plans", destination: "/products", permanent: true },
@@ -32,6 +32,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/_next/static/:path*", headers: longCache },
+      { source: "/uploads/:path*", headers: publicCache },
       { source: "/_next/image", headers: publicCache },
       {
         source: "/:file(favicon.ico|icon.svg|apple-icon.png|og.png|robots.txt|sitemap.xml|manifest.webmanifest)",

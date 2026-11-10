@@ -29,6 +29,18 @@ async function main() {
     },
   });
 
+  const totpEmail = "e2e-totp@example.com";
+  await prisma.user.upsert({
+    where: { email: totpEmail },
+    update: { passwordHash, role: "ADMIN", disabled: false, name: "两步验证", totpEnabled: false, totpSecretEnc: null, totpPendingEnc: null },
+    create: {
+      email: totpEmail,
+      passwordHash,
+      role: "ADMIN",
+      name: "两步验证",
+    },
+  });
+
   await prisma.coupon.upsert({
     where: { code: "SAVE10" },
     update: { active: true, kind: "PERCENT", percentOff: 10, amountCents: null, minOrderCents: 0, maxUses: null, maxUsesPerUser: null },

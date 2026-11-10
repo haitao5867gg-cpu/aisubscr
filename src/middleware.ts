@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { r2ImageOrigin } from "@/lib/r2-config";
 
 /**
  * Per-request CSP nonce for Next.js inline/framework scripts.
@@ -38,12 +39,14 @@ export function middleware(request: NextRequest) {
   const scriptSrc = isDev
     ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
     : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+  const imageOrigin = r2ImageOrigin();
+  const imgSrc = ["'self'", "blob:", "data:", imageOrigin].filter(Boolean).join(" ");
   const csp = [
     "default-src 'self'",
     scriptSrc,
     "style-src 'self' 'unsafe-inline'",
     "style-src-attr 'unsafe-inline'",
-    "img-src 'self' blob: data:",
+    `img-src ${imgSrc}`,
     "font-src 'self'",
     isDev ? "connect-src 'self' ws: wss:" : "connect-src 'self'",
     "object-src 'none'",
@@ -59,6 +62,7 @@ export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("x-request-id", id);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
   requestHeaders.set("Content-Security-Policy", csp);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -79,7 +83,7 @@ export const config = {
   matcher: [
     {
       source:
-        "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest|og.png).*)",
+        "/((?!_next/static|_next/image|uploads/|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest|og.png).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

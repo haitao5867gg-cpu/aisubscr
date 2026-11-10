@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDict } from "@/components/LocaleProvider";
+import { uploadAdminImage } from "@/lib/upload-client";
 
 type Settings = {
   siteName: string;
@@ -15,6 +16,8 @@ type Settings = {
   announcementText: string;
   announcementEnabled: boolean;
   orderExpireMinutes: number;
+  adminTotpRequired: boolean;
+  qrImageUrl: string;
   hasContactQr: boolean;
 };
 
@@ -22,8 +25,6 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
   const t = useDict();
   const router = useRouter();
   const [form, setForm] = useState(initial);
-  const [qrMime, setQrMime] = useState<string | null>(null);
-  const [qrBase64, setQrBase64] = useState<string | null>(null);
   const [clearQr, setClearQr] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -75,8 +76,9 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
               announcementText: form.announcementText.trim(),
               announcementEnabled: form.announcementEnabled,
               orderExpireMinutes: minutes,
+              adminTotpRequired: form.adminTotpRequired,
               ...(clearQr ? { clearQr: true } : {}),
-              ...(qrMime && qrBase64 && !clearQr ? { qrImageMime: qrMime, qrImageBase64: qrBase64 } : {}),
+              ...(form.qrImageUrl && !clearQr ? { qrImageUrl: form.qrImageUrl } : {}),
             }),
           });
           const data = await res.json().catch(() => ({}));
@@ -85,9 +87,11 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
             return;
           }
           setSaved(true);
-          setQrMime(null);
-          setQrBase64(null);
           setClearQr(false);
+          if (clearQr) {
+            setField("qrImageUrl", "");
+            setField("hasContactQr", false);
+          }
           router.refresh();
         } catch {
           setError(t.common.requestFailed);
@@ -132,6 +136,17 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
         <p className="muted" style={{ margin: "0.35rem 0 0" }}>{t.admin.orderExpireHint}</p>
       </div>
       <div>
+        <label className="row">
+          <input
+            type="checkbox"
+            checked={form.adminTotpRequired}
+            onChange={(event) => setField("adminTotpRequired", event.target.checked)}
+          />
+          {t.admin.totpRequiredSetting}
+        </label>
+        <p className="muted" style={{ margin: "0.35rem 0 0" }}>{t.admin.totpRequiredHint}</p>
+      </div>
+      <div>
         <label className="label" htmlFor="setting-announcement">{t.admin.announcement}</label>
         <textarea
           id="setting-announcement"
@@ -157,33 +172,35 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
           accept="image/png,image/jpeg,image/webp"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            setClearQr(false);
-            if (!file) {
-              setQrMime(null);
-              setQrBase64(null);
+            event.target.value = "";
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) {
+              setError(t.admin.uploadInvalid);
               return;
             }
-            if (file.size > 512 * 1024) {
-              setError(t.admin.invalidQr);
-              setQrMime(null);
-              setQrBase64(null);
-              return;
-            }
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = typeof reader.result === "string" ? reader.result : "";
-              const comma = result.indexOf(",");
-              setQrMime(file.type);
-              setQrBase64(comma >= 0 ? result.slice(comma + 1) : result);
-            };
-            reader.readAsDataURL(file);
+            setError("");
+            setBusy(true);
+            void uploadAdminImage(file, "contact-qr")
+              .then((url) => {
+                setClearQr(false);
+                setField("qrImageUrl", url);
+                setField("hasContactQr", true);
+              })
+              .catch((uploadError: unknown) => {
+                setError(uploadError instanceof Error && uploadError.message ? uploadError.message : t.admin.uploadFailed);
+              })
+              .finally(() => setBusy(false));
           }}
         />
         <p className="muted" style={{ margin: "0.35rem 0 0" }}>{t.admin.qrHint}</p>
-        {(form.hasContactQr || qrBase64) && !clearQr && (
-          // Preview is a data URL or the same-origin QR route, neither of which should go through the image optimizer.
+        {(form.qrImageUrl || form.hasContactQr) && !clearQr && (
+          // Uploaded files are WebP on our host or R2. The legacy QR is same-origin.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={qrBase64 && qrMime ? `data:${qrMime};base64,${qrBase64}` : "/api/contact-qr"} alt={t.contact.qr} style={{ width: 140, marginTop: "0.75rem" }} />
+          <img
+            src={form.qrImageUrl || "/api/contact-qr"}
+            alt={t.contact.qr}
+            style={{ width: 140, maxWidth: "100%", marginTop: "0.75rem" }}
+          />
         )}
         {form.hasContactQr && (
           <label className="row" style={{ marginTop: "0.5rem" }}>

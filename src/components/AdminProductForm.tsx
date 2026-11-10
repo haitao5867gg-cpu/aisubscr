@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDict } from "@/components/LocaleProvider";
+import { uploadAdminImage } from "@/lib/upload-client";
 
 type ProductSeed = {
   id: string;
@@ -55,7 +56,17 @@ export function AdminProductForm({ product }: { product?: ProductSeed }) {
           return;
         }
         const image = imageUrl.trim();
-        if (image && (!image.startsWith("/") || image.startsWith("//") || image.includes(".."))) {
+        const sitePath = image.startsWith("/") && !image.startsWith("//") && !image.includes("..") && !image.includes("\\");
+        let remote = false;
+        if (image && !sitePath) {
+          try {
+            const url = new URL(image);
+            remote = (url.protocol === "https:" || url.protocol === "http:") && !url.username;
+          } catch {
+            remote = false;
+          }
+        }
+        if (image && !sitePath && !remote) {
           setError(zh.admin.imageInvalid);
           return;
         }
@@ -136,9 +147,37 @@ export function AdminProductForm({ product }: { product?: ProductSeed }) {
         </div>
       </div>
       <div>
-        <label className="label" htmlFor={field("image")}>{zh.admin.image}</label>
-        <input id={field("image")} className="input" value={imageUrl} placeholder="/images/plan.png" onChange={(event) => setImageUrl(event.target.value)} />
+        <label className="label" htmlFor={field("file")}>{zh.admin.imageUpload}</label>
+        <input
+          id={field("file")}
+          className="input"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) {
+              setError(zh.admin.uploadInvalid);
+              return;
+            }
+            setError("");
+            setBusy(true);
+            void uploadAdminImage(file, "product")
+              .then((url) => setImageUrl(url))
+              .catch((uploadError: unknown) => {
+                setError(uploadError instanceof Error && uploadError.message ? uploadError.message : zh.admin.uploadFailed);
+              })
+              .finally(() => setBusy(false));
+          }}
+        />
+        <label className="label" htmlFor={field("image")} style={{ marginTop: "0.75rem" }}>{zh.admin.image}</label>
+        <input id={field("image")} className="input" value={imageUrl} placeholder="/uploads/products/example.webp" onChange={(event) => setImageUrl(event.target.value)} />
         <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>{zh.admin.imageHint}</p>
+        {imageUrl && (imageUrl.startsWith("/") || imageUrl.startsWith("https://") || imageUrl.startsWith("http://")) && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt="" style={{ width: 160, maxWidth: "100%", marginTop: "0.75rem" }} />
+        )}
       </div>
       <label className="row">
         <input type="checkbox" checked={isSubscription} onChange={(event) => setIsSubscription(event.target.checked)} />

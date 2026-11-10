@@ -17,7 +17,16 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   sessionVersion Int      @default(0) // bumped to invalidate iron-session cookies
+  /// AES-GCM payload of the active TOTP secret. Null until enrollment is confirmed.
+  totpSecretEnc  String?
+  /// AES-GCM payload of a secret that is not active until the admin confirms a code.
+  totpPendingEnc String?
+  totpEnabled    Boolean  @default(false)
+  totpEnabledAt  DateTime?
+  /// Last accepted RFC 6238 time step, so the same code cannot be reused in the window.
+  totpLastStep   Int?
   orders         Order[]
+  totpRecoveryCodes TotpRecoveryCode[]
   tickets        Ticket[]
   ticketReplies  TicketReply[]
   passwordResetCode PasswordResetCode?
@@ -28,6 +37,18 @@ model User {
 }
 
 /// One active password-reset code per user. The code is stored hashed.
+/// One-time backup codes for an admin who enrolled in TOTP. Only the hash is stored.
+model TotpRecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
 model PasswordResetCode {
   id        String   @id @default(cuid())
   userId    String   @unique
@@ -100,6 +121,9 @@ model Order {
   tickets         Ticket[]
   redemption      CouponRedemption?
 
+  @@index([userId, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
   @@index([status, expiresAt])
 }
 
@@ -179,6 +203,7 @@ model AuditLog {
   afterJson  String?
   createdAt  DateTime @default(now())
 
+  /// Hot path: the audit page lists newest first.
   @@index([createdAt])
   @@index([targetType, targetId])
 }
@@ -193,6 +218,10 @@ model SiteSetting {
   qq                   String   @default("")
   /// Empty means the contact page uses supportEmail.
   contactEmail         String   @default("")
+  /// Public URL for the customer-service QR. Legacy qrImageData is used when this is empty.
+  qrImageUrl           String?
+  /// When true, an admin who has not enrolled in TOTP can only open the enrollment page.
+  adminTotpRequired    Boolean  @default(false)
   qrImageMime          String?
   /// Base64 image bytes. Never returned from the public settings JSON.
   qrImageData          String?
@@ -206,6 +235,7 @@ model SiteSetting {
 /// Promo code. Usage is reserved in the same transaction that creates the order.
 model Coupon {
   id             String   @id @default(cuid())
+  /// Unique index used when checkout looks up a code.
   code           String   @unique
   kind           String   // PERCENT | FIXED
   percentOff     Int?

@@ -36,6 +36,10 @@ yarn-error.log*
 # secrets
 ADMIN_CREDENTIALS.txt
 
+# admin uploads written by the local storage driver
+/public/uploads/**
+!/public/uploads/.gitkeep
+
 # prisma
 prisma/dev.db
 prisma/dev.db-journal

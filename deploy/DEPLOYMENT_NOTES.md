@@ -90,4 +90,31 @@ systemctl restart aisubscr
 
 `npx prisma migrate deploy` applies `20261110210000_coupons_support_expiry`. It adds coupon tables, FAQ rows, contact and announcement columns, and order discount / expiry columns. It does not insert promo codes, FAQ text, or legal copy. Do not run `db:seed` or `db:setup`.
 
+## Admin 2FA, image uploads, SQLite, and internal routes (2026-11-10)
+
+`npx prisma migrate deploy` applies `20261110233000_admin_totp_uploads_indexes`. It adds TOTP columns, `TotpRecoveryCode`, `SiteSetting.qrImageUrl`, `SiteSetting.adminTotpRequired`, and order indexes on `(userId, createdAt)`, `(userId, status, createdAt)`, and `(status, createdAt)`. `Coupon.code` and `AuditLog.createdAt` were already indexed. It does not insert users or turn 2FA on. Do not run `db:seed` or `db:setup`.
+
+New environment variables, all optional:
+
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_PUBLIC_BUCKET`
+- `R2_PUBLIC_BASE_URL`
+
+Leave them empty to store uploads in `public/uploads`. Setup is in `deploy/UPLOADS.md`. Set `R2_PUBLIC_BASE_URL` before `npm run build` when using R2, because the CSP image origin is read at build time. Rotating `SESSION_SECRET` makes existing authenticator secrets undecryptable; recovery codes still work so an admin can sign in and enroll again.
+
+The app enables SQLite WAL (`PRAGMA journal_mode=WAL`) and a 5 second busy timeout (`socket_timeout=5` on the Prisma connection, plus `PRAGMA busy_timeout=5000`). WAL files (`production.db-wal` and `production.db-shm`) sit next to the database. The existing backup script should keep using the SQLite backup API so those files stay consistent.
+
+Reload nginx after copying `deploy/nginx-http.conf` and `deploy/nginx-https.conf`. `/api/internal/` is allowed only from `127.0.0.1` and `::1`. The expire cron should keep using `scripts/expire-orders.ts` or `curl` to `http://127.0.0.1:3000`. A public `https://aisubscr.com/api/internal/...` call is denied by nginx. See `deploy/CRON.md`.
+
+```bash
+cd /opt/aisubscr
+/usr/local/sbin/aisubscr-backup
+npx prisma migrate deploy
+npm run build
+nginx -t && systemctl reload nginx
+systemctl restart aisubscr
+```
+
 Unpaid orders expire after 30 minutes unless admin settings or `ORDER_EXPIRE_MINUTES` say otherwise. Install the cron from `deploy/CRON.md`. A visit to an order page also expires due orders, so the cron is the backstop. Promo-code uses are counted inside the order transaction and returned if the order expires or is cancelled before payment.

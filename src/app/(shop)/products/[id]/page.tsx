@@ -4,8 +4,10 @@ import { prisma } from "@/lib/db";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { getSession } from "@/lib/session";
+import { JsonLd } from "@/components/JsonLd";
 import { PurchasePanel } from "@/components/PurchasePanel";
-import { pageMeta } from "@/lib/seo";
+import { pageMeta, productJsonLd } from "@/lib/seo";
+import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +28,28 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const zh = getDict(await getLocale());
   const { id } = await params;
-  const [product, session] = await Promise.all([
+  const [product, session, settings] = await Promise.all([
     prisma.product.findFirst({ where: { id, active: true } }),
     getSession(),
+    prisma.siteSetting.findUnique({ where: { id: "default" }, select: { siteName: true } }),
   ]);
   if (!product) notFound();
+  const productUrl = `${siteUrl()}/products/${product.id}`;
 
   return (
+    <>
+      <JsonLd
+        data={productJsonLd({
+          name: product.name,
+          description: product.description,
+          sku: product.id,
+          priceCents: product.priceCents,
+          url: productUrl,
+          image: product.imageUrl,
+          inStock: product.stock === null || product.stock > 0,
+          brand: settings?.siteName || zh.siteName,
+        })}
+      />
     <div className="detail-grid">
       <PurchasePanel
         productId={product.id}
@@ -46,7 +63,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <p className="eyebrow">{zh.product.detail}</p>
           <h1 className="page-title">{product.name}</h1>
           {product.imageUrl && (
-            // Same-origin paths only; the CSP does not allow remote images.
+            // Same-site uploads, or the configured R2 public host. CSP img-src lists that origin.
             // eslint-disable-next-line @next/next/no-img-element
             <img src={product.imageUrl} alt={product.name} className="product-photo" />
           )}
@@ -62,5 +79,6 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </section>
       </div>
     </div>
+    </>
   );
 }

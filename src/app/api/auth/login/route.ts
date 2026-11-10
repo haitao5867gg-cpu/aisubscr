@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
-import { peekLoginLimit, recordLoginFailure } from "@/lib/auth-rate-limit";
+import { consumeSecondFactor } from "@/lib/admin-totp";
+import { peekLoginLimit, peekTotpLimit, recordLoginFailure, recordTotpFailure } from "@/lib/auth-rate-limit";
 import { findUserByEmail, hashPassword, verifyPassword } from "@/lib/auth";
 import { clientIp } from "@/lib/client-ip";
 import { normalizeEmail } from "@/lib/email";
@@ -12,6 +13,7 @@ import { getSession } from "@/lib/session";
 const schema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  totp: z.string().trim().max(40).optional(),
 });
 
 let dummyHash: Promise<string> | null = null;
@@ -56,6 +58,25 @@ export async function POST(req: NextRequest) {
     }
     if (user.disabled) {
       return NextResponse.json({ error: t.auth.accountDisabled }, { status: 403 });
+    }
+
+    if (user.totpEnabled) {
+      const totpLimit = await peekTotpLimit(email, ip);
+      if (totpLimit.limited) {
+        return NextResponse.json(
+          { error: t.auth.loginRateLimited, totpRequired: true },
+          { status: 429, headers: { "Retry-After": String(totpLimit.retryAfterSeconds) } },
+        );
+      }
+      const code = parsed.data.totp?.trim() ?? "";
+      if (!code) {
+        return NextResponse.json({ error: t.auth.totpPrompt, totpRequired: true }, { status: 401 });
+      }
+      const codeOk = await consumeSecondFactor(user.id, code);
+      if (!codeOk) {
+        await recordTotpFailure(email, ip);
+        return NextResponse.json({ error: t.auth.totpInvalid, totpRequired: true }, { status: 401 });
+      }
     }
 
     const session = await getSession();

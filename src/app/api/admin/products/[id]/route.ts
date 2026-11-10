@@ -4,7 +4,7 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
-import { productPatchData, productPatchSchema, productSnapshot } from "@/lib/product-input";
+import { imageFieldRejected, productPatchData, productPatchSchema, productSnapshot } from "@/lib/product-input";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +19,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   const { id } = await params;
   const parsed = productPatchSchema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: t.admin.invalidProduct }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: imageFieldRejected(parsed.error) ? t.admin.imageInvalid : t.admin.invalidProduct },
+      { status: 400 },
+    );
+  }
   const before = await prisma.product.findUnique({ where: { id } });
   if (!before) return NextResponse.json({ error: t.shop.productMissing }, { status: 404 });
   const actor = actorFrom(session);

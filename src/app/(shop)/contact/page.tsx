@@ -42,12 +42,16 @@ export default async function ContactPage() {
             )}
           </div>
         ))}
-        {settings?.qrImageData && settings.qrImageMime && (
+        {(settings?.qrImageUrl || (settings?.qrImageData && settings.qrImageMime)) && (
           <div>
             <div className="muted" style={{ marginBottom: "0.4rem" }}>{t.contact.qr}</div>
-            {/* User-uploaded bytes from our own route. next/image would proxy them through the optimizer. */}
+            {/* Uploaded WebP, or the legacy same-origin QR route. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/api/contact-qr" alt={t.contact.qr} style={{ width: 180, maxWidth: "100%" }} />
+            <img
+              src={settings?.qrImageUrl || "/api/contact-qr"}
+              alt={t.contact.qr}
+              style={{ width: 180, maxWidth: "100%" }}
+            />
           </div>
         )}
         <Link href="/tickets" className="btn btn-primary">

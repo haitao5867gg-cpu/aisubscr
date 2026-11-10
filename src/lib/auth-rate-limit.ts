@@ -26,6 +26,11 @@ const LIMITS = {
       { windowMs: HOUR_MS, max: 5 },
     ],
   },
+  // Wrong authenticator or recovery codes. A correct password is not a login failure.
+  totp: {
+    email: [{ windowMs: 15 * 60 * 1000, max: 5 }],
+    ip: [{ windowMs: 15 * 60 * 1000, max: 20 }],
+  },
 } as const;
 
 type RateAction = keyof typeof LIMITS;
@@ -102,4 +107,12 @@ export function peekLoginLimit(email: string, ip: string) {
 
 export function recordLoginFailure(email: string, ip: string) {
   return inspect("login", email, ip, true);
+}
+
+export function peekTotpLimit(email: string, ip: string) {
+  return inspect("totp", email, ip, false);
+}
+
+export function recordTotpFailure(email: string, ip: string) {
+  return inspect("totp", email, ip, true);
 }

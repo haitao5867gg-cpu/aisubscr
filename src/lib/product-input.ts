@@ -1,14 +1,16 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { isAllowedImageReference } from "./image-ref";
 
 const imageUrl = z
   .string()
   .trim()
   .max(500)
-  .refine(
-    (value) => value === "" || (value.startsWith("/") && !value.startsWith("//") && !value.includes("..") && !value.includes("\\")),
-    { message: "image" },
-  );
+  .refine((value) => value === "" || isAllowedImageReference(value), { message: "image" });
+
+export function imageFieldRejected(error: { issues: { path: PropertyKey[] }[] }) {
+  return error.issues.some((issue) => issue.path[0] === "imageUrl");
+}
 
 const fields = {
   name: z.string().trim().min(1).max(80),
