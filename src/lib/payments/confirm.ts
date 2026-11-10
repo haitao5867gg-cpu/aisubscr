@@ -1,5 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
+import { deliverOrderPaid } from "../mail/notices";
+import { logApiError } from "../server-log";
 
 const PAYABLE = ["PENDING", "PAYING"] as const;
 const SETTLED = ["PAID", "COMPLETED", "REFUNDING", "REFUNDED"] as const;
@@ -23,9 +25,28 @@ export type ConfirmPaymentResult =
  * A second successful event for an order that is already paid does not
  * change the order again.
  */
-export async function confirmOrderPayment(input: ConfirmPaymentInput): Promise<ConfirmPaymentResult> {
+async function notifyPaid(orderId: string) {
   try {
-    return await prisma.$transaction(async (tx) => {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { user: { select: { email: true } }, items: { select: { productName: true, quantity: true } } },
+    });
+    if (!order) return;
+    await deliverOrderPaid({
+      to: order.user.email,
+      orderNo: order.orderNo,
+      totalCents: order.totalCents,
+      items: order.items,
+    });
+  } catch (error) {
+    logApiError({ requestId: "order-paid", route: "mail:order-paid", status: 500, error });
+  }
+}
+
+export async function confirmOrderPayment(input: ConfirmPaymentInput): Promise<ConfirmPaymentResult> {
+  let result: ConfirmPaymentResult;
+  try {
+    result = await prisma.$transaction(async (tx) => {
       const existing = await tx.paymentNotice.findUnique({
         where: {
           provider_providerEventId: {
@@ -96,4 +117,6 @@ export async function confirmOrderPayment(input: ConfirmPaymentInput): Promise<C
     }
     throw error;
   }
+  if (result.ok && result.applied) await notifyPaid(result.orderId);
+  return result;
 }

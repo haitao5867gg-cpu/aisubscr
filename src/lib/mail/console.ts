@@ -10,6 +10,7 @@ export const consoleMailer: Mailer = {
         to: mail.to,
         subject: mail.subject,
         text: mail.text,
+        ...(mail.html ? { html: mail.html } : {}),
       })}`,
     );
   },

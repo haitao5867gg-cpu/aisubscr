@@ -6,6 +6,7 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { PlanCard } from "@/components/PlanCard";
 import { EmptyState } from "@/components/EmptyState";
+import { catalogOrderBy } from "@/lib/catalog";
 import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export default async function HomePage() {
     prisma.product.findMany({
       where: { active: true },
       take: 6,
-      orderBy: { createdAt: "asc" },
+      orderBy: catalogOrderBy,
     }),
     prisma.siteSetting.findUnique({ where: { id: "default" } }),
   ]);

@@ -1,18 +1,13 @@
 import { randomInt, randomUUID } from "crypto";
-import type { Prisma } from "@prisma/client";
 import type { Dict } from "@/i18n";
 import { zh } from "@/i18n/zh";
 import { findUserByEmail, hashPassword, verifyPassword } from "./auth";
 import { prisma } from "./db";
 import { normalizeEmail } from "./email";
+import { deliverPasswordChanged } from "./mail/notices";
 import { logApiError } from "./server-log";
 import { MailConfigError, sendPasswordResetEmail } from "./mail";
-
-const CODE_TTL_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 5;
-const MIN_INTERVAL_MS = 60 * 1000;
-const HOUR_MS = 60 * 60 * 1000;
-const MAX_PER_HOUR = 5;
+import { CODE_MAX_ATTEMPTS, CODE_TTL_MS, reserveSendWindow } from "./send-window";
 
 export function resetMessages(dict: Dict = zh) {
   return {
@@ -33,24 +28,11 @@ export type PasswordResetRequestResult =
   | { status: "rate_limited" }
   | { status: "send_failed" };
 
-type Db = Prisma.TransactionClient;
-
 let dummyHash: Promise<string> | null = null;
 
 function dummyCompare(code: string) {
   dummyHash ??= hashPassword("000000");
   return dummyHash.then((hash) => verifyPassword(code, hash));
-}
-
-async function bucketLimited(db: Db, bucket: string, now: number) {
-  const recent = await db.passwordResetSend.count({
-    where: { bucket, createdAt: { gt: new Date(now - MIN_INTERVAL_MS) } },
-  });
-  if (recent >= 1) return true;
-  const hour = await db.passwordResetSend.count({
-    where: { bucket, createdAt: { gt: new Date(now - HOUR_MS) } },
-  });
-  return hour >= MAX_PER_HOUR;
 }
 
 export async function requestPasswordReset(input: {
@@ -65,19 +47,8 @@ export async function requestPasswordReset(input: {
   const ipBucket = `ip:${ip}`;
 
   // Count the attempt before the lookup so unknown addresses still spend the per-IP budget.
-  const limited = await prisma.$transaction(async (tx) => {
-    await tx.passwordResetSend.deleteMany({
-      where: { createdAt: { lt: new Date(now - HOUR_MS) } },
-    });
-    if ((await bucketLimited(tx, emailBucket, now)) || (await bucketLimited(tx, ipBucket, now))) {
-      return true;
-    }
-    await tx.passwordResetSend.createMany({
-      data: [{ bucket: emailBucket }, { bucket: ipBucket }],
-    });
-    return false;
-  });
-  if (limited) return { status: "rate_limited" };
+  const allowed = await reserveSendWindow([emailBucket, ipBucket], now);
+  if (!allowed) return { status: "rate_limited" };
 
   const user = await findUserByEmail(email);
   if (!user) return { status: "not_registered", email };
@@ -125,13 +96,13 @@ export async function resetPassword(input: {
   let compared = false;
   const outcome = await prisma.$transaction(async (tx) => {
     const row = await tx.passwordResetCode.findUnique({ where: { userId: user.id } });
-    if (!row || row.expiresAt.getTime() <= Date.now() || row.attempts >= MAX_ATTEMPTS) {
+    if (!row || row.expiresAt.getTime() <= Date.now() || row.attempts >= CODE_MAX_ATTEMPTS) {
       if (row) await tx.passwordResetCode.delete({ where: { id: row.id } });
       return "invalid" as const;
     }
 
     const updated = await tx.passwordResetCode.updateMany({
-      where: { id: row.id, attempts: { lt: MAX_ATTEMPTS } },
+      where: { id: row.id, attempts: { lt: CODE_MAX_ATTEMPTS } },
       data: { attempts: { increment: 1 } },
     });
     if (updated.count !== 1) {
@@ -143,7 +114,7 @@ export async function resetPassword(input: {
     const match = await verifyPassword(input.code, row.codeHash);
     if (!match) {
       const after = await tx.passwordResetCode.findUnique({ where: { id: row.id } });
-      if (after && after.attempts >= MAX_ATTEMPTS) {
+      if (after && after.attempts >= CODE_MAX_ATTEMPTS) {
         await tx.passwordResetCode.delete({ where: { id: row.id } });
       }
       return "invalid" as const;
@@ -162,5 +133,6 @@ export async function resetPassword(input: {
 
   if (!compared) await dummyCompare(input.code);
   if (outcome !== "ok") return { ok: false };
+  await deliverPasswordChanged(user.email);
   return { ok: true, userId: user.id };
 }

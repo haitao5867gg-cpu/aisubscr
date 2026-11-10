@@ -12,7 +12,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       MAIL_PROVIDER: console
       PAYMENT_PROVIDER: mock
@@ -29,12 +29,20 @@ jobs:
 
       - run: npm ci
 
+      - name: Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Browsers are cached by Playwright version and CPU architecture.
+      # runner.os is only "Linux", so it is not enough: an arm64 restore would
+      # not run on x64, and a 1.56 browser does not match 1.65.
+      # Apt packages are not in that cache. ubuntu-latest is Ubuntu 26.04, and
+      # Playwright 1.61+ knows how to install Chromium's libraries there.
       - name: Cache Playwright browsers
         uses: actions/cache@v4
-        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium

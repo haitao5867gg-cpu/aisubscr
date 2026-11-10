@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { actorFrom, writeAudit } from "@/lib/audit";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
@@ -17,10 +18,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const ticket = await prisma.ticket.findUnique({ where: { id } });
   if (!ticket) return NextResponse.json({ error: "工单不存在" }, { status: 404 });
-  const { body } = schema.parse(await req.json());
-  const reply = await prisma.ticketReply.create({
-    data: { ticketId: id, userId: session.userId!, body, isStaff: true },
+  const parsed = schema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "请填写回复" }, { status: 400 });
+  const actor = actorFrom(session);
+  const reply = await prisma.$transaction(async (tx) => {
+    const created = await tx.ticketReply.create({
+      data: { ticketId: id, userId: session.userId!, body: parsed.data.body, isStaff: true },
+    });
+    await tx.ticket.update({ where: { id }, data: { status: "REPLIED" } });
+    await writeAudit(tx, {
+      ...actor,
+      action: "ticket.reply",
+      targetType: "ticket",
+      targetId: id,
+      before: { status: ticket.status },
+      after: { status: "REPLIED", replyId: created.id },
+    });
+    return created;
   });
-  await prisma.ticket.update({ where: { id }, data: { status: "REPLIED" } });
   return NextResponse.json({ reply });
 }

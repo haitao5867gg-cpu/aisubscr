@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { adminAuthResponse, requireAdmin } from "@/lib/session";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
+import { actorFrom, writeAudit } from "@/lib/audit";
+import { catalogOrderBy } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
+import { productCreateData, productCreateSchema, productSnapshot } from "@/lib/product-input";
+import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 export async function GET() {
   try {
@@ -11,28 +15,33 @@ export async function GET() {
     if (denied) return denied;
     throw error;
   }
-  const products = await prisma.product.findMany({ orderBy: { createdAt: "desc" } });
+  const products = await prisma.product.findMany({ orderBy: catalogOrderBy });
   return NextResponse.json({ products });
 }
 
-const schema = z.object({
-  name: z.string().min(1),
-  description: z.string().min(1),
-  priceCents: z.number().int().positive(),
-  isSubscription: z.boolean().optional(),
-  active: z.boolean().optional(),
-  imageUrl: z.string().optional(),
-});
-
 export async function POST(req: NextRequest) {
+  const t = getDict(await getLocale());
+  let session;
   try {
-    await requireAdmin();
+    session = await requireAdmin();
   } catch (error) {
     const denied = adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }
-  const body = schema.parse(await req.json());
-  const product = await prisma.product.create({ data: body });
+  const parsed = productCreateSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: t.admin.invalidProduct }, { status: 400 });
+  const actor = actorFrom(session);
+  const product = await prisma.$transaction(async (tx) => {
+    const created = await tx.product.create({ data: productCreateData(parsed.data) });
+    await writeAudit(tx, {
+      ...actor,
+      action: "product.create",
+      targetType: "product",
+      targetId: created.id,
+      after: productSnapshot(created),
+    });
+    return created;
+  });
   return NextResponse.json({ product });
 }

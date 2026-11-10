@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
+import { inStock } from "@/lib/catalog";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
   if (!product) return NextResponse.json({ error: t.shop.productMissing }, { status: 404 });
   const cart = session.cart || [];
   const existing = cart.find((c) => c.productId === body.productId);
+  const nextQuantity = (existing?.quantity ?? 0) + body.quantity;
+  if (!inStock(product, nextQuantity)) {
+    return NextResponse.json({ error: t.shop.outOfStock }, { status: 400 });
+  }
   if (existing) existing.quantity += body.quantity;
   else cart.push({ productId: body.productId, quantity: body.quantity });
   session.cart = cart;

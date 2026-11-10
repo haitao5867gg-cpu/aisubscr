@@ -11,11 +11,13 @@ export function PurchasePanel({
   priceCents,
   isSubscription,
   loggedIn,
+  inStock = true,
 }: {
   productId: string;
   priceCents: number;
   isSubscription: boolean;
   loggedIn: boolean;
+  inStock?: boolean;
 }) {
   const zh = useDict();
   const unit = isSubscription ? zh.shop.periodCount : zh.shop.qtyCount;
@@ -39,7 +41,7 @@ export function PurchasePanel({
         </div>
       </div>
 
-      {isSubscription && (
+      {inStock && isSubscription && (
         <div className="stack" style={{ gap: "0.4rem" }}>
           <span className="label" style={{ margin: 0 }}>
             {zh.shop.renewOption}
@@ -55,7 +57,9 @@ export function PurchasePanel({
         </div>
       )}
 
-      {intent === "buy" ? (
+      {!inStock && <div className="alert alert-warn" role="status">{zh.shop.outOfStock}</div>}
+
+      {inStock && intent === "buy" ? (
         <>
           <div className="stack" style={{ gap: "0.4rem" }}>
             <span className="label" style={{ margin: 0 }}>
@@ -74,7 +78,7 @@ export function PurchasePanel({
           </div>
           <AddToCartButton productId={productId} quantity={qty} label={zh.shop.addCheckout} />
         </>
-      ) : (
+      ) : inStock ? (
         <div className="stack" style={{ gap: "0.75rem" }}>
           <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
             {zh.shop.renewHint}
@@ -83,7 +87,7 @@ export function PurchasePanel({
             {zh.shop.renewGo}
           </Link>
         </div>
-      )}
+      ) : null}
       <div className="badge badge-mock">{zh.common.mockPay}</div>
     </aside>
   );

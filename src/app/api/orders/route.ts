@@ -38,10 +38,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ order });
   } catch (e: unknown) {
     const code = e instanceof Error ? e.message : "";
-    if (code !== "PRODUCT_NOT_FOUND" && code !== "EMPTY_CART") {
+    if (code !== "PRODUCT_NOT_FOUND" && code !== "EMPTY_CART" && code !== "OUT_OF_STOCK") {
       logApiError({ requestId: requestIdFrom(req.headers), route: "/api/orders", status: 400, error: e });
     }
-    const msg = code === "PRODUCT_NOT_FOUND" ? t.shop.productMissing : code === "EMPTY_CART" ? t.cart.empty : t.shop.orderFailed;
+    const msg =
+      code === "PRODUCT_NOT_FOUND"
+        ? t.shop.productMissing
+        : code === "EMPTY_CART"
+          ? t.cart.empty
+          : code === "OUT_OF_STOCK"
+            ? t.shop.outOfStock
+            : t.shop.orderFailed;
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
