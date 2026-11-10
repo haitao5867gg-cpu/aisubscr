@@ -12,7 +12,7 @@ export function TicketImages({
         <a key={item.id} href={item.url}>
           {/* Ticket images are same-origin WebP or the configured R2 host. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={item.url} alt={alt} />
+          <img src={item.url} alt={alt} width={120} height={90} />
         </a>
       ))}
     </div>

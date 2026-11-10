@@ -47,7 +47,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             {user.orders.map((order) => (
               <Link key={order.id} href={`/admin/orders/${order.id}`} className="ledger-row">
                 <strong>{order.orderNo}</strong>
-                <span className="muted">{order.items.map((item) => item.productName).join("、")}</span>
+                <span className="muted">{order.items.map((item) => item.productName).join(zh.common.listSep)}</span>
                 <span>{formatRmb(order.totalCents)}</span>
                 <StatusBadge status={order.status} />
               </Link>

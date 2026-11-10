@@ -24,12 +24,12 @@ export function SupportFab({ supportEmail, supportHours }: { supportEmail: strin
             {zh.ticket.fabHint}
           </p>
           <div className="muted" style={{ fontSize: "0.9rem" }}>
-            {zh.support.email}：
+            {zh.support.email}{zh.common.colon}
             <a href={`mailto:${supportEmail}`} style={{ color: "var(--primary)" }}>
               {supportEmail}
             </a>
             <br />
-            {zh.support.hours}：{supportHours}
+            {zh.support.hours}{zh.common.colon}{supportHours}
           </div>
           <div className="row">
             <Link href="/contact" className="btn btn-primary" onClick={() => setOpen(false)}>

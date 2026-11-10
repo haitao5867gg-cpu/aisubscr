@@ -63,3 +63,24 @@ it("resets a password from the console mailer and drops the old session", async 
   expect(newLogin.status).toBe(200);
   expect((await (await me()).json()).user.email).toBe(email);
 });
+
+it("rejects a reset password shorter than registration and keeps the code", async () => {
+  const ip = nextIp();
+  const email = `short-${Date.now()}@example.com`;
+  expect((await register(jsonRequest("/api/auth/register", { ip, body: { email, password: "oldpass1" } }))).status).toBe(200);
+  const lines: string[] = [];
+  const spy = vi.spyOn(console, "info").mockImplementation((...args: unknown[]) => {
+    lines.push(args.map((part) => String(part)).join(" "));
+  });
+  try {
+    expect((await forgot(jsonRequest("/api/auth/forgot-password", { ip, body: { email } }))).status).toBe(200);
+  } finally {
+    spy.mockRestore();
+  }
+  const code = resetCode(lines);
+  const short = await reset(jsonRequest("/api/auth/reset-password", { ip, body: { email, code, password: "a" } }));
+  expect(short.status).toBe(400);
+  expect((await short.json()).error).toContain("6");
+  const done = await reset(jsonRequest("/api/auth/reset-password", { ip, body: { email, code, password: "newpass1" } }));
+  expect(done.status).toBe(200);
+});

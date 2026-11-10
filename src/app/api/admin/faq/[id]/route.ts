@@ -4,6 +4,7 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { refreshPublic } from "@/lib/public-content";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 const schema = z.object({
@@ -58,6 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
     return saved;
   });
+  refreshPublic("help");
   return NextResponse.json({ entry });
 }
 
@@ -85,5 +87,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       before: snapshot(before),
     });
   });
+  refreshPublic("help");
   return NextResponse.json({ ok: true });
 }

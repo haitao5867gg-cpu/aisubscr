@@ -63,7 +63,7 @@ export default async function AdminAnalyticsPage({
               className="chart chart-wide"
               style={{ ["--cols" as string]: summary.daysSeries.length }}
               role="img"
-              aria-label={summary.daysSeries.map((column) => `${column.day} ${column.views}`).join("，")}
+              aria-label={summary.daysSeries.map((column) => `${column.day} ${column.views}`).join(t.common.listSep)}
             >
               {summary.daysSeries.map((column) => (
                 <div key={column.day} className="chart-col">

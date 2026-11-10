@@ -10,7 +10,7 @@ const map: Record<string, string> = {
   REFUNDED: "badge-refunded",
   CANCELLED: "badge-example",
   EXPIRED: "badge-example",
-  FAILED: "badge-refunded",
+  FAILED: "badge-failed",
   OPEN: "badge-pending",
   WAITING_CUSTOMER: "badge-paying",
   RESOLVED: "badge-completed",

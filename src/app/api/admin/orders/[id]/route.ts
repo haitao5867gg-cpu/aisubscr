@@ -6,6 +6,7 @@ import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { deliverOrderPaid } from "@/lib/mail/notices";
 import { releaseUnpaidHold, UNPAID_STATUSES } from "@/lib/order-expiry";
+import { refreshPublic } from "@/lib/public-content";
 import { canAdminSet, ORDER_STATUSES } from "@/lib/payments/states";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
@@ -60,7 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (newlyPaid) data.paidAt = new Date();
   const actor = actorFrom(session);
   const closingUnpaid =
-    (parsed.data.status === "CANCELLED" || parsed.data.status === "EXPIRED") &&
+    (parsed.data.status === "CANCELLED" || parsed.data.status === "EXPIRED" || parsed.data.status === "FAILED") &&
     (UNPAID_STATUSES as readonly string[]).includes(current.status);
   let order;
   try {
@@ -89,6 +90,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     throw error;
   }
+  if (closingUnpaid) refreshPublic("catalog");
   if (newlyPaid) {
     await deliverOrderPaid({
       to: current.user.email,

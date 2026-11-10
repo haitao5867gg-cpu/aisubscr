@@ -64,7 +64,7 @@ export default async function AdminHome() {
         <div
           className="chart"
           role="img"
-          aria-label={summary.chart.map((column) => `${column.label} ${column.orders}`).join("，")}
+          aria-label={summary.chart.map((column) => `${column.label} ${column.orders}`).join(zh.common.listSep)}
         >
           {summary.chart.map((column) => (
             <div key={column.day} className="chart-col">

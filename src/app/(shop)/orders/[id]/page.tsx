@@ -35,7 +35,7 @@ export default async function OrderDetailPage({
   const { id } = await params;
   const sp = await searchParams;
   const session = await getSession();
-  if (!session.isLoggedIn || !session.userId) redirect("/login");
+  if (!session.isLoggedIn || !session.userId) redirect(`/login?next=${encodeURIComponent(`/orders/${id}`)}`);
   await expireDueOrders();
   const order = await prisma.order.findFirst({
     where: { id, userId: session.userId },

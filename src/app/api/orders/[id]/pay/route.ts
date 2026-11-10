@@ -5,6 +5,7 @@ import { getLocale } from "@/i18n/server";
 import { prisma } from "@/lib/db";
 import { expireOrderIfDue } from "@/lib/order-expiry";
 import { getPaymentProvider, PaymentProviderNotReadyError, type PaymentMethod } from "@/lib/payments";
+import { claimPayableOrder } from "@/lib/payments/claim";
 import { getSession } from "@/lib/session";
 import { siteUrl } from "@/lib/site";
 
@@ -41,10 +42,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       returnUrl: `${siteUrl()}/orders/${order.id}`,
       notifyUrl: `${siteUrl()}/api/payments/notify/${provider.name.toLowerCase()}`,
     });
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { paymentMethod: method, paymentProvider: result.provider, status: "PAYING" },
+    const moved = await claimPayableOrder(order.id, {
+      paymentMethod: method,
+      paymentProvider: result.provider,
     });
+    if (moved.count !== 1) {
+      return NextResponse.json({ error: t.payment.payFailed }, { status: 409 });
+    }
     return NextResponse.json({ payment: result });
   } catch (error) {
     if (error instanceof PaymentProviderNotReadyError) {

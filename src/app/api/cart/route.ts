@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
-import { inStock } from "@/lib/catalog";
+import { inStock, lineQuantity, MAX_LINE_QUANTITY } from "@/lib/catalog";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
@@ -26,8 +26,8 @@ export async function GET() {
 }
 
 const addSchema = z.object({
-  productId: z.string(),
-  quantity: z.number().int().min(1).default(1),
+  productId: z.string().trim().min(1).max(80),
+  quantity: z.number().int().min(1).max(MAX_LINE_QUANTITY).default(1),
 });
 
 export async function POST(req: NextRequest) {
@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
   const cart = session.cart || [];
   const existing = cart.find((c) => c.productId === body.productId);
   const nextQuantity = (existing?.quantity ?? 0) + body.quantity;
+  if (lineQuantity(nextQuantity) === null) {
+    return NextResponse.json({ error: t.shop.invalidQuantity }, { status: 400 });
+  }
   if (!inStock(product, nextQuantity)) {
     return NextResponse.json({ error: t.shop.outOfStock }, { status: 400 });
   }
@@ -55,13 +58,18 @@ export async function PUT(req: NextRequest) {
   const t = getDict(await getLocale());
   const session = await getSession();
   const parsed = z
-    .object({ productId: z.string(), quantity: z.number().int().min(0) })
+    .object({ productId: z.string().trim().min(1).max(80), quantity: z.number().int().min(0).max(MAX_LINE_QUANTITY) })
     .safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: t.shop.cartUpdateFailed }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: t.shop.invalidQuantity }, { status: 400 });
   const body = parsed.data;
   let cart = session.cart || [];
   if (body.quantity === 0) cart = cart.filter((c) => c.productId !== body.productId);
   else {
+    const product = await prisma.product.findFirst({ where: { id: body.productId, active: true } });
+    if (!product) return NextResponse.json({ error: t.shop.productMissing }, { status: 404 });
+    if (!inStock(product, body.quantity)) {
+      return NextResponse.json({ error: t.shop.outOfStock }, { status: 400 });
+    }
     const existing = cart.find((c) => c.productId === body.productId);
     if (existing) existing.quantity = body.quantity;
   }

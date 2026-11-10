@@ -1,4 +1,5 @@
 import { formatRmb } from "@/lib/money";
+import { paymentMethodLabel } from "@/lib/payment-label";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { StatusBadge } from "./StatusBadge";
@@ -78,7 +79,11 @@ export async function OrderSummary({
       <div className="money-row">
         <span className="muted">{zh.shop.payMethod}</span>
         <span>
-          {paymentMethod || "—"}
+          {paymentMethodLabel(paymentMethod, {
+            wechat: zh.payment.wechat,
+            alipay: zh.payment.alipay,
+            mock: zh.payment.mock,
+          })}
           {paymentProvider === "MOCK" && (
             <>
               {" "}

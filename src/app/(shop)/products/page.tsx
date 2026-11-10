@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { prisma } from "@/lib/db";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { PlanCard } from "@/components/PlanCard";
 import { EmptyState } from "@/components/EmptyState";
-import { catalogOrderBy } from "@/lib/catalog";
 import { pageMeta } from "@/lib/seo";
+import { getActiveProducts } from "@/lib/public-content";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ProductsPage() {
   const zh = getDict(await getLocale());
-  const products = await prisma.product.findMany({ where: { active: true }, orderBy: catalogOrderBy });
+  const products = await getActiveProducts();
   return (
     <div>
       <p className="eyebrow">{zh.shop.navPlans}</p>

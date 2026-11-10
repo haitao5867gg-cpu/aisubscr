@@ -19,6 +19,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const order = await prisma.order.findFirst({ where: { id, userId: session.userId } });
   if (!order) return NextResponse.json({ error: t.shop.orderFailed }, { status: 404 });
+  if (order.paymentProvider && order.paymentProvider !== "MOCK") {
+    return NextResponse.json({ error: t.payment.payFailed }, { status: 400 });
+  }
 
   const methodParam = req.nextUrl.searchParams.get("method");
   const method = methodParam === "WECHAT" || methodParam === "ALIPAY" || methodParam === "MOCK" ? methodParam : "MOCK";

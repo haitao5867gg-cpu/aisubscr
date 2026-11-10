@@ -4,7 +4,7 @@ import { Footer } from "@/components/Footer";
 import { SupportFab } from "@/components/SupportFab";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
-import { prisma } from "@/lib/db";
+import { getPublicSettings } from "@/lib/public-content";
 
 // Layout always reads the database (and the header reads the session).
 // Login/register have no page-level dynamic flag, so without this Next
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ShopLayout({ children }: { children: React.ReactNode }) {
   const [settings, t] = await Promise.all([
-    prisma.siteSetting.findUnique({ where: { id: "default" } }),
+    getPublicSettings(),
     getLocale().then((locale) => getDict(locale)),
   ]);
   return (

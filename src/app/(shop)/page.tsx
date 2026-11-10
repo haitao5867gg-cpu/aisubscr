@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { formatRmb } from "@/lib/money";
+import { getActiveProducts, getPublicSettings } from "@/lib/public-content";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { PlanCard } from "@/components/PlanCard";
 import { EmptyState } from "@/components/EmptyState";
-import { catalogOrderBy } from "@/lib/catalog";
 import { JsonLd } from "@/components/JsonLd";
 import { organizationJsonLd, pageMeta } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
@@ -20,14 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const zh = getDict(await getLocale());
-  const [products, settings] = await Promise.all([
-    prisma.product.findMany({
-      where: { active: true },
-      take: 6,
-      orderBy: catalogOrderBy,
-    }),
-    prisma.siteSetting.findUnique({ where: { id: "default" } }),
-  ]);
+  const [catalog, settings] = await Promise.all([getActiveProducts(), getPublicSettings()]);
+  const products = catalog.slice(0, 6);
   const supportEmail = settings?.supportEmail || "support@example.com";
   const supportHours = settings?.supportHours || "08:00–23:00";
 
@@ -132,13 +125,13 @@ export default async function HomePage() {
               {zh.shop.trustLead}
             </p>
             <p style={{ marginBottom: "0.2rem" }}>
-              <span className="muted">{zh.support.email}：</span>
+              <span className="muted">{zh.support.email}{zh.common.colon}</span>
               <a href={`mailto:${supportEmail}`} className="text-link">
                 {supportEmail}
               </a>
             </p>
             <p className="muted" style={{ marginTop: 0 }}>
-              {zh.support.hours}：{supportHours}
+              {zh.support.hours}{zh.common.colon}{supportHours}
             </p>
             <Link href="/tickets" className="btn btn-secondary">
               {zh.nav.tickets}

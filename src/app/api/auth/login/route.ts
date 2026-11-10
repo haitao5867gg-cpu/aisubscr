@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     await session.save();
     return NextResponse.json({ ok: true, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
   } catch (error) {
-    logApiError({ requestId, route: "/api/auth/login", status: 400, error });
-    return NextResponse.json({ error: t.auth.loginFailed }, { status: 400 });
+    logApiError({ requestId, route: "/api/auth/login", status: 500, error });
+    return NextResponse.json({ error: t.auth.loginFailed }, { status: 500 });
   }
 }

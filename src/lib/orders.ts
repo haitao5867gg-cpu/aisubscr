@@ -1,4 +1,5 @@
 import { writeAudit } from "./audit";
+import { lineQuantity, MAX_LINE_QUANTITY } from "./catalog";
 import { reserveCoupon } from "./coupons";
 import { prisma } from "./db";
 import { orderExpiresAt, resolveExpireMinutes } from "./order-expiry";
@@ -22,8 +23,12 @@ export async function createOrderFromItems(
 
   const merged = new Map<string, number>();
   for (const item of items) {
-    const qty = Math.max(1, Math.floor(item.quantity) || 1);
-    merged.set(item.productId, (merged.get(item.productId) ?? 0) + qty);
+    const productId = typeof item?.productId === "string" ? item.productId.trim() : "";
+    const qty = lineQuantity(item?.quantity);
+    if (!productId || productId.length > 80 || qty === null) throw new Error("INVALID_ITEMS");
+    const next = (merged.get(productId) ?? 0) + qty;
+    if (next > MAX_LINE_QUANTITY) throw new Error("INVALID_ITEMS");
+    merged.set(productId, next);
   }
   const ids = [...merged.keys()];
   const couponCode = opts?.couponCode?.trim() ?? "";

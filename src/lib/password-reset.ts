@@ -18,6 +18,7 @@ export function resetMessages(dict: Dict = zh) {
     invalidCode: dict.auth.invalidCode,
     resetDone: dict.auth.resetDone,
     passwordRequired: dict.auth.passwordRequired,
+    passwordShort: dict.auth.passwordShort,
     emailInvalid: dict.auth.emailInvalid,
   };
 }
@@ -86,11 +87,15 @@ export async function resetPassword(input: {
   email: string;
   code: string;
   password: string;
-}): Promise<{ ok: true; userId: string } | { ok: false }> {
+}): Promise<{ ok: true; userId: string } | { ok: false; reason: "short" | "invalid" }> {
+  if (input.password.length < 6 || input.password.length > 200) {
+    await dummyCompare(input.code);
+    return { ok: false, reason: "short" };
+  }
   const user = await findUserByEmail(normalizeEmail(input.email));
   if (!user) {
     await dummyCompare(input.code);
-    return { ok: false };
+    return { ok: false, reason: "invalid" };
   }
 
   let compared = false;
@@ -132,7 +137,7 @@ export async function resetPassword(input: {
   }, { timeout: 15000 });
 
   if (!compared) await dummyCompare(input.code);
-  if (outcome !== "ok") return { ok: false };
+  if (outcome !== "ok") return { ok: false, reason: "invalid" };
   await deliverPasswordChanged(user.email);
   return { ok: true, userId: user.id };
 }

@@ -4,6 +4,7 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { refreshPublic } from "@/lib/public-content";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 const schema = z.object({
@@ -65,5 +66,6 @@ export async function POST(req: NextRequest) {
     });
     return created;
   });
+  refreshPublic("help");
   return NextResponse.json({ entry });
 }

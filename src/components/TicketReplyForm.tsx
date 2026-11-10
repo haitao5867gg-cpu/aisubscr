@@ -73,7 +73,11 @@ export function TicketReplyForm({ ticketId, admin = false }: { ticketId: string;
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
-            if (!file || attachments.length >= 4) return;
+            if (!file) return;
+            if (attachments.length >= 4) {
+              setError(zh.ticket.attachLimit);
+              return;
+            }
             if (file.size > 5 * 1024 * 1024) {
               setError(zh.ticket.uploadInvalid);
               return;

@@ -81,7 +81,7 @@ export default async function CartPage() {
               <strong>{zh.shop.stepAccount}</strong>
               {loggedIn ? (
                 <p className="muted" style={{ marginBottom: 0 }}>
-                  {zh.shop.accountReady}：{session.email}
+                  {zh.shop.accountReady}{zh.common.colon}{session.email}
                 </p>
               ) : (
                 <>

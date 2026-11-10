@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/db";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { getSession } from "@/lib/session";
@@ -8,13 +7,14 @@ import { JsonLd } from "@/components/JsonLd";
 import { PurchasePanel } from "@/components/PurchasePanel";
 import { pageMeta, productJsonLd } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
+import { getActiveProduct, getPublicSettings } from "@/lib/public-content";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const [product, t] = await Promise.all([
-    prisma.product.findFirst({ where: { id, active: true } }),
+    getActiveProduct(id),
     getLocale().then((locale) => getDict(locale)),
   ]);
   const description = product?.description?.replace(/\s+/g, " ").slice(0, 160) || t.seo.productFallback;
@@ -29,9 +29,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const zh = getDict(await getLocale());
   const { id } = await params;
   const [product, session, settings] = await Promise.all([
-    prisma.product.findFirst({ where: { id, active: true } }),
+    getActiveProduct(id),
     getSession(),
-    prisma.siteSetting.findUnique({ where: { id: "default" }, select: { siteName: true } }),
+    getPublicSettings(),
   ]);
   if (!product) notFound();
   const productUrl = `${siteUrl()}/products/${product.id}`;
@@ -65,7 +65,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           {product.imageUrl && (
             // Same-site uploads, or the configured R2 public host. CSP img-src lists that origin.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.imageUrl} alt={product.name} className="product-photo" />
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              width={960}
+              height={540}
+              className="product-photo"
+            />
           )}
           <p style={{ whiteSpace: "pre-wrap", marginTop: 0 }}>{product.description}</p>
         </div>

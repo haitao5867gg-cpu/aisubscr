@@ -45,7 +45,7 @@ export default async function OrdersPage() {
             <Link key={order.id} href={`/orders/${order.id}`} className="ledger-row">
               <strong>{order.orderNo}</strong>
               <span className="muted">
-                {order.items.map((item) => item.productName).join("、")}
+                {order.items.map((item) => item.productName).join(zh.common.listSep)}
                 {order.isRenewal ? ` · ${zh.shop.renewalTag}` : ""}
                 {order.discountCents > 0 && order.couponCode ? ` · ${order.couponCode}` : ""}
                 {renews ? ` · ${zh.shop.nextRenewal} ${formatDay(renews)}` : ""}

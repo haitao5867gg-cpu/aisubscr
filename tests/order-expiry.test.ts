@@ -103,6 +103,24 @@ it("releases stock when an admin cancels an unpaid order", async () => {
   expect((await prisma.product.findUnique({ where: { id: product.id } }))?.stock).toBe(2);
 });
 
+it("releases stock when an admin marks an unpaid order failed", async () => {
+  const ip = nextIp();
+  const { product, user } = await buyerAndProduct(2);
+  const order = await createOrderFromItems(user.id, [{ productId: product.id, quantity: 1 }]);
+  const adminEmail = `admin-fail-${Date.now()}@example.com`;
+  await prisma.user.create({
+    data: { email: adminEmail, passwordHash: await hashPassword("secret12"), role: "ADMIN", name: "管理员" },
+  });
+  expect((await login(jsonRequest("/api/auth/login", { ip, body: { email: adminEmail, password: "secret12" } }))).status).toBe(200);
+  const failed = await setStatus(
+    jsonRequest(`/api/admin/orders/${order.id}`, { ip, method: "PATCH", body: { status: "FAILED", note: "支付没有完成" } }),
+    routeContext({ id: order.id }),
+  );
+  expect(failed.status).toBe(200);
+  expect((await prisma.order.findUnique({ where: { id: order.id } }))?.status).toBe("FAILED");
+  expect((await prisma.product.findUnique({ where: { id: product.id } }))?.stock).toBe(2);
+});
+
 it("hides the cron route without a secret and expires due orders when authorized", async () => {
   const { product, user } = await buyerAndProduct();
   const order = await createOrderFromItems(user.id, [{ productId: product.id, quantity: 1 }]);

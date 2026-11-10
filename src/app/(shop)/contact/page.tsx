@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { prisma } from "@/lib/db";
+import { getPublicSettings } from "@/lib/public-content";
 import { contactEmailOf } from "@/lib/site-settings";
 import { pageMeta } from "@/lib/seo";
 
@@ -15,12 +16,18 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ContactPage() {
   const t = getDict(await getLocale());
-  const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
+  const settings = await getPublicSettings();
+  const legacyQr = settings?.qrImageUrl
+    ? null
+    : await prisma.siteSetting.findUnique({
+        where: { id: "default" },
+        select: { qrImageData: true, qrImageMime: true },
+      });
   const email = settings ? contactEmailOf(settings) : "support@example.com";
   const hours = settings?.supportHours || "08:00–23:00";
   const rows = [
-    settings?.wechatId.trim() ? [t.contact.wechat, settings.wechatId.trim()] : null,
-    settings?.qq.trim() ? [t.contact.qq, settings.qq.trim()] : null,
+    settings?.wechatId?.trim() ? [t.contact.wechat, settings.wechatId.trim()] : null,
+    settings?.qq?.trim() ? [t.contact.qq, settings.qq.trim()] : null,
     [t.contact.email, email],
     [t.support.hours, hours],
   ].filter((row): row is [string, string] => Boolean(row));
@@ -42,7 +49,7 @@ export default async function ContactPage() {
             )}
           </div>
         ))}
-        {(settings?.qrImageUrl || (settings?.qrImageData && settings.qrImageMime)) && (
+        {(settings?.qrImageUrl || (legacyQr?.qrImageData && legacyQr.qrImageMime)) && (
           <div>
             <div className="muted" style={{ marginBottom: "0.4rem" }}>{t.contact.qr}</div>
             {/* Uploaded WebP, or the legacy same-origin QR route. */}
@@ -50,7 +57,9 @@ export default async function ContactPage() {
             <img
               src={settings?.qrImageUrl || "/api/contact-qr"}
               alt={t.contact.qr}
-              style={{ width: 180, maxWidth: "100%" }}
+              width={180}
+              height={180}
+              style={{ width: 180, height: "auto", maxWidth: "100%" }}
             />
           </div>
         )}

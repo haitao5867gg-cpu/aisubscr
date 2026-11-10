@@ -77,7 +77,9 @@ export async function confirmEmailChange(input: {
   userId: string;
   email: string;
   code: string;
-}): Promise<{ ok: true; oldEmail: string; email: string } | { ok: false; reason: "invalid" | "taken" }> {
+}): Promise<
+  { ok: true; oldEmail: string; email: string; sessionVersion: number } | { ok: false; reason: "invalid" | "taken" }
+> {
   const nextEmail = normalizeEmail(input.email);
   const user = await prisma.user.findUnique({ where: { id: input.userId } });
   if (!user || user.disabled) {
@@ -120,7 +122,10 @@ export async function confirmEmailChange(input: {
       return "taken" as const;
     }
 
-    await tx.user.update({ where: { id: user.id }, data: { email: nextEmail } });
+    await tx.user.update({
+      where: { id: user.id },
+      data: { email: nextEmail, sessionVersion: { increment: 1 } },
+    });
     await tx.emailChangeCode.delete({ where: { id: row.id } });
     return "ok" as const;
   }, { timeout: 15000 });
@@ -128,5 +133,6 @@ export async function confirmEmailChange(input: {
   if (!compared) await dummyCompare(input.code);
   if (outcome === "taken") return { ok: false, reason: "taken" };
   if (outcome !== "ok") return { ok: false, reason: "invalid" };
-  return { ok: true, oldEmail: user.email, email: nextEmail };
+  const fresh = await prisma.user.findUnique({ where: { id: user.id }, select: { sessionVersion: true } });
+  return { ok: true, oldEmail: user.email, email: nextEmail, sessionVersion: fresh?.sessionVersion ?? user.sessionVersion + 1 };
 }

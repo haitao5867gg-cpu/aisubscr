@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
-import { prisma } from "@/lib/db";
 import { pageMeta } from "@/lib/seo";
+import { getPublishedFaqs } from "@/lib/public-content";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HelpPage() {
   const t = getDict(await getLocale());
-  const entries = await prisma.faqEntry.findMany({
-    where: { published: true },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-  });
+  const entries = await getPublishedFaqs();
   return (
     <div className="reading stack">
       <h1 className="page-title">{t.help.title}</h1>
@@ -30,8 +27,8 @@ export default async function HelpPage() {
           </Link>
         </div>
       )}
-      {entries.map((entry) => (
-        <details key={entry.id} className="faq-item" open>
+      {entries.map((entry, index) => (
+        <details key={entry.id} className="faq-item" open={index === 0}>
           <summary>{entry.question}</summary>
           <p>{entry.answer}</p>
         </details>

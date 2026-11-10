@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
   }
   await deliverEmailChanged(result.oldEmail, result.email);
   session.email = result.email;
+  session.sessionVersion = result.sessionVersion;
   await session.save();
   return NextResponse.json({ ok: true, email: result.email, message: t.security.emailChanged });
 }

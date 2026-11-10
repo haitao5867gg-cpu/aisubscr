@@ -38,7 +38,7 @@ export default async function AccountPage() {
     }),
   ]);
 
-  const active = orders.filter((order) => order.status === "PENDING" || order.status === "PAID");
+  const active = orders.filter((order) => order.status === "PENDING" || order.status === "PAYING" || order.status === "PAID");
   const renewals = orders
     .map((order) => ({ order, date: renewalDate(order) }))
     .filter((entry): entry is { order: (typeof orders)[number]; date: Date } => Boolean(entry.date));
@@ -48,7 +48,7 @@ export default async function AccountPage() {
       <div>
         <p className="eyebrow">{zh.nav.account}</p>
         <h1 className="page-title">
-          {zh.shop.accountHello}，{session.name || session.email}
+          {zh.shop.accountHello}{zh.common.comma}{session.name || session.email}
         </h1>
         <p className="page-desc">{session.email}</p>
         <Link href="/account/security" className="btn btn-secondary">{zh.security.security}</Link>
@@ -67,7 +67,7 @@ export default async function AccountPage() {
             {active.map((order) => (
               <Link key={order.id} href={`/orders/${order.id}`} className="ledger-row">
                 <strong>{order.orderNo}</strong>
-                <span className="muted">{order.items.map((item) => item.productName).join("、")}</span>
+                <span className="muted">{order.items.map((item) => item.productName).join(zh.common.listSep)}</span>
                 <span>{formatRmb(order.totalCents)}</span>
                 <StatusBadge status={order.status} />
               </Link>
@@ -86,7 +86,7 @@ export default async function AccountPage() {
           <div className="card">
             {renewals.map(({ order, date }) => (
               <Link key={order.id} href={`/orders/${order.id}`} className="ledger-row">
-                <strong>{order.items.filter((item) => item.isSubscription).map((item) => item.productName).join("、")}</strong>
+                <strong>{order.items.filter((item) => item.isSubscription).map((item) => item.productName).join(zh.common.listSep)}</strong>
                 <span className="muted">{order.orderNo}</span>
                 <span className="muted">{zh.shop.nextRenewal}</span>
                 <strong>{formatDay(date)}</strong>
