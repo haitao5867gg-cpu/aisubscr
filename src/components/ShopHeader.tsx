@@ -42,7 +42,7 @@ export function ShopHeader({
           </span>
           {siteName}
         </Link>
-        <nav className="header-nav" aria-label={zh.nav.home}>
+        <nav className="header-nav" aria-label={zh.common.primaryNav}>
           {links.map((link) => (
             <Link key={link.href} href={link.href} className={`nav-link ${link.on ? "active" : ""}`}>
               {link.label}

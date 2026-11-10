@@ -5,6 +5,7 @@ import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { imageFieldRejected, productPatchData, productPatchSchema, productSnapshot } from "@/lib/product-input";
+import { refreshPublic } from "@/lib/public-content";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
     return updated;
   });
+  refreshPublic("catalog");
   return NextResponse.json({ product });
 }
 
@@ -72,6 +74,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
       });
       return updated;
     });
+    refreshPublic("catalog");
     return NextResponse.json({ ok: true, hidden: true, product: hidden });
   }
   try {
@@ -92,5 +95,6 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     }
     throw error;
   }
+  refreshPublic("catalog");
   return NextResponse.json({ ok: true, hidden: false });
 }

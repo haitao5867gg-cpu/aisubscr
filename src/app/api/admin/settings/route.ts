@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
+import { refreshPublic } from "@/lib/public-content";
 import { prisma } from "@/lib/db";
 import { isAllowedImageReference } from "@/lib/image-ref";
 import { adminSettingsView, decodeQrImage, type SettingsRow } from "@/lib/site-settings";
@@ -138,5 +139,6 @@ export async function PATCH(req: NextRequest) {
     });
     return saved;
   });
+  refreshPublic("settings");
   return NextResponse.json({ settings: adminSettingsView(settings) });
 }

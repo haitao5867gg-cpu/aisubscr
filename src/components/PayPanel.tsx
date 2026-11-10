@@ -55,7 +55,7 @@ export function PayPanel({ orderId }: { orderId: string }) {
             <input type="radio" checked={method === value} onChange={() => setMethod(value)} />
             {label}
           </span>
-          <span className="badge badge-mock">{zh.common.mockPay}</span>
+          {value === "MOCK" ? <span className="badge badge-mock">{zh.common.mockPay}</span> : null}
         </label>
       ))}
       {error && <div className="alert alert-danger" role="alert">{error}</div>}

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
+import { refreshPublic } from "@/lib/public-content";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
@@ -69,5 +70,6 @@ export async function POST(req: NextRequest) {
     });
     return created;
   });
+  refreshPublic("blog");
   return NextResponse.json({ post });
 }

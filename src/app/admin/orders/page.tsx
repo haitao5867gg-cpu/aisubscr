@@ -69,7 +69,7 @@ export default async function AdminOrdersPage({
             <Link key={order.id} href={`/admin/orders/${order.id}`} className="ledger-row">
               <strong>{order.orderNo}</strong>
               <span className="muted">
-                {order.user.email} · {order.items.map((item) => item.productName).join("、")} · {formatShanghai(order.createdAt, locale)}
+                {order.user.email} · {order.items.map((item) => item.productName).join(zh.common.listSep)} · {formatShanghai(order.createdAt, locale)}
               </span>
               <span>{formatRmb(order.totalCents)}</span>
               <StatusBadge status={order.status} />

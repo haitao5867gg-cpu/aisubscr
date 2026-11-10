@@ -35,13 +35,17 @@ export async function POST(req: NextRequest) {
   if (parsed.data.password === "") {
     return NextResponse.json({ error: messages.passwordRequired }, { status: 400 });
   }
+  if (parsed.data.password.length < 6 || parsed.data.password.length > 200) {
+    return NextResponse.json({ error: messages.passwordShort }, { status: 400 });
+  }
   if (!/^\d{6}$/.test(parsed.data.code)) {
     return NextResponse.json({ error: messages.invalidCode }, { status: 400 });
   }
 
   const result = await resetPassword(parsed.data);
   if (!result.ok) {
-    return NextResponse.json({ error: messages.invalidCode }, { status: 400 });
+    const error = result.reason === "short" ? messages.passwordShort : messages.invalidCode;
+    return NextResponse.json({ error }, { status: 400 });
   }
   await revokeCurrentSessionIfUser(result.userId);
   return NextResponse.json({ ok: true, message: messages.resetDone });

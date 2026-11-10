@@ -28,14 +28,15 @@ export function TicketForm({
     if (!list?.length) return;
     const room = 4 - attachments.length;
     if (room <= 0) {
-      setError(zh.ticket.attachHint);
+      setError(zh.ticket.attachLimit);
       return;
     }
     setBusy(true);
     setError("");
     try {
+      const files = Array.from(list);
       const next = [...attachments];
-      for (const file of Array.from(list).slice(0, room)) {
+      for (const file of files.slice(0, room)) {
         if (file.size > 5 * 1024 * 1024) {
           setError(zh.ticket.uploadInvalid);
           continue;
@@ -44,6 +45,7 @@ export function TicketForm({
         next.push({ url });
       }
       setAttachments(next);
+      if (files.length > room) setError(zh.ticket.attachLimit);
     } catch (uploadError) {
       setError(uploadError instanceof Error && uploadError.message ? uploadError.message : zh.ticket.uploadInvalid);
     } finally {

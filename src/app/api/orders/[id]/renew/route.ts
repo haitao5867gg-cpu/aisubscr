@@ -4,6 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { createOrderFromItems } from "@/lib/orders";
+import { refreshPublic } from "@/lib/public-content";
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,11 +31,13 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       subItems.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       { isRenewal: true, parentOrderId: parent.id },
     );
+    refreshPublic("catalog");
     return NextResponse.json({ order });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     if (code === "OUT_OF_STOCK") return NextResponse.json({ error: t.shop.outOfStock }, { status: 400 });
     if (code === "PRODUCT_NOT_FOUND") return NextResponse.json({ error: t.shop.productMissing }, { status: 400 });
+    if (code === "INVALID_ITEMS") return NextResponse.json({ error: t.shop.invalidQuantity }, { status: 400 });
     throw error;
   }
 }

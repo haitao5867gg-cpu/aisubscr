@@ -142,6 +142,12 @@ test("the language switch changes the home page copy", async ({ page }) => {
   await page.getByRole("button", { name: "English" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Pick a plan");
   await expect(page.getByRole("link", { name: "View plans" }).first()).toBeVisible();
+  await page.goto("/products");
+  await expect(page.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+  await page.goto("/help");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Help center");
+  await page.getByRole("button", { name: "中文" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("帮助中心");
 });
 
 test("a promo code discounts checkout and the unpaid order shows a countdown", async ({ page }) => {

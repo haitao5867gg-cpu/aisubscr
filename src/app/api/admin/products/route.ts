@@ -5,6 +5,7 @@ import { actorFrom, writeAudit } from "@/lib/audit";
 import { catalogOrderBy } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
 import { imageFieldRejected, productCreateData, productCreateSchema, productSnapshot } from "@/lib/product-input";
+import { refreshPublic } from "@/lib/public-content";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 export async function GET() {
@@ -48,5 +49,6 @@ export async function POST(req: NextRequest) {
     });
     return created;
   });
+  refreshPublic("catalog");
   return NextResponse.json({ product });
 }

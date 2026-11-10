@@ -61,7 +61,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
         </div>
         <div className="muted">{formatShanghai(order.createdAt, locale)}</div>
         <div className="muted">
-          {zh.admin.shareLink}：/order/{order.publicToken}
+          {zh.admin.shareLink}{zh.common.colon}/order/{order.publicToken}
         </div>
         <ul className="plain-list">
           {order.items.map((item) => (

@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
-import { prisma } from "@/lib/db";
+import { getPublicSettings } from "@/lib/public-content";
 import { announcementKey } from "@/lib/site-settings";
 import { DismissAnnouncement } from "./DismissAnnouncement";
 
 export async function AnnouncementBanner() {
-  const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
+  const settings = await getPublicSettings();
   const text = settings?.announcementText.trim() ?? "";
   if (!settings?.announcementEnabled || !text) return null;
   const key = announcementKey(text);

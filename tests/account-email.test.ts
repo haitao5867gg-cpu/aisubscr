@@ -4,6 +4,7 @@ import { POST as requestEmail } from "@/app/api/account/email/route";
 import { POST as login } from "@/app/api/auth/login/route";
 import { GET as me } from "@/app/api/auth/me/route";
 import { POST as register } from "@/app/api/auth/register/route";
+import { prisma } from "@/lib/db";
 import { consoleMailer } from "@/lib/mail/console";
 import { resetCookieJar } from "./cookie-jar";
 import { jsonRequest, nextIp } from "./http";
@@ -58,6 +59,7 @@ it("changes the email with a code and tells the old address", async () => {
   expect(notice.join("\n")).toContain("aisubscr 登录邮箱已更改");
 
   expect((await (await me()).json()).user.email).toBe(next);
+  expect((await prisma.user.findUnique({ where: { email: next } }))?.sessionVersion).toBe(1);
   expect((await login(jsonRequest("/api/auth/login", { ip: nextIp(), body: { email, password: "secret12" } }))).status).toBe(401);
   expect((await login(jsonRequest("/api/auth/login", { ip: nextIp(), body: { email: next, password: "secret12" } }))).status).toBe(200);
 });

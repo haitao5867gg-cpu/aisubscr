@@ -86,12 +86,12 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
               <section className="card stack" style={{ padding: "1.2rem" }}>
                 <h2 style={{ margin: 0, fontSize: "1.1rem" }}>{zh.shop.supportCard}</h2>
                 <p className="muted" style={{ margin: 0 }}>
-                  {zh.support.email}：
+                  {zh.support.email}{zh.common.colon}
                   <a href={`mailto:${supportEmail}`} className="text-link">
                     {supportEmail}
                   </a>
                   <br />
-                  {zh.support.hours}：{supportHours}
+                  {zh.support.hours}{zh.common.colon}{supportHours}
                 </p>
                 {!order.tickets.length && <p className="muted">{zh.shop.noPublicTickets}</p>}
                 {order.tickets.map((ticket) => (

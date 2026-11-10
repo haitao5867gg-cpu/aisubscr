@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { getPublicSettings } from "@/lib/public-content";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 
 export async function Footer() {
   const zh = getDict(await getLocale());
-  const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
+  const settings = await getPublicSettings();
   const year = new Date().getFullYear();
   const siteName = settings?.siteName || zh.siteName;
 
@@ -46,10 +46,10 @@ export async function Footer() {
           <div className="stack" style={{ gap: "0.45rem" }}>
             <strong>{zh.footer.support}</strong>
             <span className="muted" style={{ fontSize: "0.9rem" }}>
-              {zh.support.email}：{settings?.supportEmail || "support@example.com"}
+              {zh.support.email}{zh.common.colon}{settings?.supportEmail || "support@example.com"}
             </span>
             <span className="muted" style={{ fontSize: "0.9rem" }}>
-              {zh.support.hours}：{settings?.supportHours || "08:00–23:00"}
+              {zh.support.hours}{zh.common.colon}{settings?.supportHours || "08:00–23:00"}
             </span>
             <Link href="/help" className="muted">
               {zh.footer.help}

@@ -56,7 +56,7 @@ export function CheckoutSummary({ subtotalCents, loggedIn }: { subtotalCents: nu
         <label className="label" htmlFor="coupon-code">
           {t.coupon.label}
         </label>
-        <div className="row">
+        <div className="coupon-row">
           <input
             id="coupon-code"
             className="input"
