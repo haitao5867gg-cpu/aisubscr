@@ -37,3 +37,23 @@ it("sets umask 022 and chowns the release before the symlink moves", () => {
   expect(rollbackOwn).toBeGreaterThan(-1);
   expect(rollbackSwitch).toBeGreaterThan(rollbackOwn);
 });
+
+it("keeps a bounded release history and health-checks an explicit rollback", () => {
+  const script = readFileSync("scripts/deploy.sh", "utf8");
+  expect(script).toContain('KEEP_RELEASES="${KEEP_RELEASES:-5}"');
+  expect(script).toContain('PREVIOUS_FILE="${PREVIOUS_FILE:-$SHARED_DIR/previous-release}"');
+  expect(script).toContain("--rollback");
+  expect(script).toContain("perform_rollback");
+  const flag = script.slice(script.indexOf("perform_rollback() {"), script.indexOf("prune_old_releases() {"));
+  expect(flag).toContain("wait_healthy");
+  expect(flag).toContain('switch_current "$previous"');
+  expect(flag).toContain("record_previous");
+  expect(flag).not.toContain("npm ci");
+  expect(flag).not.toContain("prisma migrate");
+  expect(flag).not.toContain("db:seed");
+  const prune = script.slice(script.indexOf("prune_old_releases() {"), script.indexOf('mkdir -p -- "$RELEASES_DIR"'));
+  expect(prune).toContain("current_real");
+  expect(prune).toContain("previous_real");
+  expect(prune).toContain('safe_rm_release "$path"');
+  expect(prune).toContain('[[ "$index" -le "$keep" ]] && continue');
+});

@@ -45,6 +45,9 @@ describe("upload paths", () => {
     expect(relativeUploadPath([".secret.webp"])).toBeNull();
     expect(relativeUploadPath(["products", "ok.webp"])).toBe("products/ok.webp");
     expect(relativeUploadPath(["contact-qr", "ok.webp"])).toBe("contact-qr/ok.webp");
+    expect(relativeUploadPath(["tickets", "11111111-1111-4111-8111-111111111111.webp"])).toBe(
+      "tickets/11111111-1111-4111-8111-111111111111.webp",
+    );
   });
 
   it("maps only image extensions to content types", () => {
@@ -134,5 +137,18 @@ describe("upload paths", () => {
       params: Promise.resolve({ path: ["products", "note.txt"] }),
     });
     expect(text.status).toBe(404);
+
+    const ticketName = "22222222-2222-4222-8222-222222222222.webp";
+    await mkdir(path.join(root, "tickets"));
+    await writeFile(path.join(root, "tickets", ticketName), body);
+    expect(await openUpload(["tickets", ticketName])).toBeNull();
+    const hidden = await readUpload(new NextRequest(`http://127.0.0.1/uploads/tickets/${ticketName}`), {
+      params: Promise.resolve({ path: ["tickets", ticketName] }),
+    });
+    expect(hidden.status).toBe(404);
+    expect(hidden.headers.get("cache-control")).toBe("no-store");
+    const owned = await openUpload(["tickets", ticketName], { audience: "ticket" });
+    expect(owned?.contentType).toBe("image/webp");
+    owned?.stream.destroy();
   });
 });

@@ -30,6 +30,7 @@ model User {
   tickets        Ticket[]       @relation("TicketOwner")
   assignedTickets Ticket[]      @relation("TicketAssignee")
   ticketReplies  TicketReply[]
+  ticketUploads  TicketUpload[]
   passwordResetCode PasswordResetCode?
   emailChangeCode EmailChangeCode?
   auditLogs      AuditLog[]
@@ -197,10 +198,24 @@ model TicketAttachment {
   id        String      @id @default(cuid())
   replyId   String
   reply     TicketReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  /// Storage key (`tickets/<uuid>.webp`) or a legacy public path. Clients receive an authenticated URL.
   url       String
   createdAt DateTime    @default(now())
 
   @@index([replyId])
+}
+
+/// Screenshot uploaded by a signed-in user and not yet attached to a reply.
+/// The file stays on local disk. The row is removed when a ticket claims it.
+model TicketUpload {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// `tickets/<uuid>.webp` under the uploads directory. Not a public URL.
+  key       String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 /// One pending email-change code per user. The code is stored hashed.

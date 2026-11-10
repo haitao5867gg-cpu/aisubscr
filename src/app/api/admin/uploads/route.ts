@@ -4,8 +4,11 @@ import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { MAX_UPLOAD_BYTES, sniffImage, toWebp, validateUpload } from "@/lib/image-upload";
 import { storePublicWebp } from "@/lib/object-storage";
+import { declaredBodyTooLarge, sameOriginMutation } from "@/lib/request-guard";
 import { logApiError, requestIdFrom } from "@/lib/server-log";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
+
+const MAX_UPLOAD_BODY = MAX_UPLOAD_BYTES + 256 * 1024;
 
 export const runtime = "nodejs";
 
@@ -17,6 +20,12 @@ export async function POST(req: NextRequest) {
     const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
+  }
+  if (!sameOriginMutation(req)) {
+    return NextResponse.json({ error: t.api.forbidden }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
+  if (declaredBodyTooLarge(req.headers, MAX_UPLOAD_BODY)) {
+    return NextResponse.json({ error: t.api.payloadTooLarge }, { status: 413, headers: { "Cache-Control": "no-store" } });
   }
 
   let form: FormData;

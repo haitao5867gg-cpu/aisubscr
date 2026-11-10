@@ -6,8 +6,10 @@ import { consumeTicketCreate } from "@/lib/auth-rate-limit";
 import { clientIp } from "@/lib/client-ip";
 import { prisma } from "@/lib/db";
 import { deliverAdminNewTicket } from "@/lib/mail/notices";
+import { readMutationJson, TICKET_JSON_MAX } from "@/lib/request-guard";
 import { getSession } from "@/lib/session";
-import { TICKET_CATEGORIES, customerReplies, customerTicket, parseTicketAttachments } from "@/lib/tickets";
+import { claimTicketUploads, TicketAttachmentError } from "@/lib/ticket-files";
+import { TICKET_CATEGORIES, customerReplies, customerTicket, parseTicketUploadIds } from "@/lib/tickets";
 
 const schema = z.object({
   subject: z.string().trim().min(2).max(120),
@@ -37,10 +39,12 @@ export async function POST(req: NextRequest) {
   if (!session.isLoggedIn || !session.userId) {
     return NextResponse.json({ error: t.api.loginRequired }, { status: 401 });
   }
-  const parsed = schema.safeParse(await req.json().catch(() => null));
+  const body = await readMutationJson(req, TICKET_JSON_MAX, t.api.forbidden, t.api.payloadTooLarge);
+  if (!body.ok) return body.response;
+  const parsed = schema.safeParse(body.value);
   if (!parsed.success) return NextResponse.json({ error: t.common.fieldRequired }, { status: 400 });
-  const attachments = parseTicketAttachments(parsed.data.attachments);
-  if (!attachments) return NextResponse.json({ error: t.api.attachmentInvalid }, { status: 400 });
+  const uploadIds = parseTicketUploadIds(parsed.data.attachments);
+  if (!uploadIds) return NextResponse.json({ error: t.api.attachmentInvalid }, { status: 400 });
 
   let orderId: string | null = null;
   if (parsed.data.orderId) {
@@ -60,23 +64,36 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const created = await prisma.ticket.create({
-    data: {
-      orderId,
-      userId: session.userId,
-      subject: parsed.data.subject,
-      category: parsed.data.category,
-      replies: {
-        create: {
-          userId: session.userId,
-          body: parsed.data.body,
-          isStaff: false,
-          attachments: { create: attachments.map((url) => ({ url })) },
+  const userId = session.userId;
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const keys = await claimTicketUploads(tx, userId, uploadIds);
+      if (!keys) throw new TicketAttachmentError();
+      return tx.ticket.create({
+        data: {
+          orderId,
+          userId,
+          subject: parsed.data.subject,
+          category: parsed.data.category,
+          replies: {
+            create: {
+              userId,
+              body: parsed.data.body,
+              isStaff: false,
+              attachments: { create: keys.map((url) => ({ url })) },
+            },
+          },
         },
-      },
-    },
-    include: { order: { select: { id: true, orderNo: true } }, replies: customerReplies },
-  });
+        include: { order: { select: { id: true, orderNo: true } }, replies: customerReplies },
+      });
+    });
+  } catch (error) {
+    if (error instanceof TicketAttachmentError) {
+      return NextResponse.json({ error: t.api.attachmentInvalid }, { status: 400 });
+    }
+    throw error;
+  }
 
   const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { email: true } });
   await deliverAdminNewTicket({

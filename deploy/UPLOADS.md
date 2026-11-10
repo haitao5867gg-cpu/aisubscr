@@ -30,13 +30,15 @@ Set all five variables in `/opt/aisubscr/.env`. If any one is missing or the pub
 
 Create an R2 bucket, turn on public access (r2.dev or a custom domain), and create an API token that can write objects in that bucket. The object key looks like `products/<uuid>.webp` or `contact-qr/<uuid>.webp`. The saved URL is `<R2_PUBLIC_BASE_URL>/<key>`.
 
+Ticket screenshots are not uploaded to R2 and are not given a public URL. They are WebP files under `tickets/<uuid>.webp` on the local uploads disk. Customers and admins load them through `/api/tickets/attachments/<id>`, which checks the ticket owner or an enrolled admin.
+
 The page CSP `img-src` includes the origin of `R2_PUBLIC_BASE_URL` plus `'self'`, `blob:`, and `data:`. Next inlines that origin when it builds middleware. Set the variable before `npm run build`. Changing the public URL later needs another build and `systemctl restart aisubscr`.
 
 Do not commit the secret. Leave the placeholders in `.env.example` empty.
 
 ## Local disk
 
-With R2 unset, files are written under `UPLOADS_DIR` (default `public/uploads/`) and the URL is still `/uploads/...`. `next start` does not serve files added to `public/` after the process starts, so a route handler reads the directory on each request. Filenames are UUIDs and the response is cached as immutable. The middleware skips `/uploads/` so those responses are not marked `private, no-store`. An optional nginx alias is in `docs/DEPLOY.md`.
+With R2 unset, product and QR files are written under `UPLOADS_DIR` (default `public/uploads/`) and the URL is `/uploads/...`. Ticket screenshots use the same directory but the public route refuses `tickets/`. `next start` does not serve files added to `public/` after the process starts, so a route handler reads the directory on each request. Product and QR filenames are UUIDs and the response is cached as immutable. The middleware skips `/uploads/` so those responses are not marked `private, no-store`. An optional nginx alias is in `docs/DEPLOY.md`; it must return 404 for `/uploads/tickets/`.
 
 On the server:
 

@@ -1,6 +1,3 @@
-import { r2PublicBaseUrl } from "./r2-config";
-import { isAllowedImageReference } from "./image-ref";
-
 export const TICKET_CATEGORIES = ["order", "billing", "account", "technical", "other"] as const;
 export const TICKET_STATUSES = ["OPEN", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"] as const;
 
@@ -9,8 +6,7 @@ export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 export const MAX_TICKET_ATTACHMENTS = 4;
 
-const TICKET_FILE =
-  /^tickets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
+const UPLOAD_URL = /^\/api\/tickets\/uploads\/([a-z0-9]{8,40})$/;
 
 export function isTicketCategory(value: string): value is TicketCategory {
   return (TICKET_CATEGORIES as readonly string[]).includes(value);
@@ -20,24 +16,27 @@ export function isTicketStatus(value: string): value is TicketStatus {
   return (TICKET_STATUSES as readonly string[]).includes(value);
 }
 
-/** A WebP produced by the ticket upload pipeline, on this host or the configured R2 base. */
-export function isTicketImageUrl(value: string) {
-  if (!isAllowedImageReference(value)) return false;
-  if (value.startsWith("/uploads/")) return TICKET_FILE.test(value.slice("/uploads/".length));
-  const base = r2PublicBaseUrl();
-  if (!base || !value.startsWith(`${base}/`)) return false;
-  return TICKET_FILE.test(value.slice(base.length + 1));
-}
-
-export function parseTicketAttachments(values: string[] | undefined): string[] | null {
+/**
+ * Ids returned by POST /api/uploads. A public ticket image address is
+ * not accepted: another customer must not attach someone else's screenshot.
+ */
+export function parseTicketUploadIds(values: string[] | undefined): string[] | null {
   if (!values?.length) return [];
   if (values.length > MAX_TICKET_ATTACHMENTS) return null;
-  const urls: string[] = [];
+  const ids: string[] = [];
   for (const value of values) {
-    if (typeof value !== "string" || !isTicketImageUrl(value)) return null;
-    urls.push(value);
+    if (typeof value !== "string") return null;
+    const match = UPLOAD_URL.exec(value);
+    if (!match) return null;
+    ids.push(match[1]);
   }
-  return urls;
+  if (new Set(ids).size !== ids.length) return null;
+  return ids;
+}
+
+/** Browser URL for a saved screenshot. The handler checks the ticket owner or an admin. */
+export function presentAttachment(item: { id: string }) {
+  return { id: item.id, url: `/api/tickets/attachments/${item.id}` };
 }
 
 /** Replies a customer or the public order page is allowed to see. */
@@ -86,7 +85,7 @@ export function customerTicket(ticket: TicketRow) {
         body: reply.body,
         isStaff: reply.isStaff,
         createdAt: reply.createdAt,
-        attachments: (reply.attachments ?? []).map((item) => ({ id: item.id, url: item.url })),
+        attachments: (reply.attachments ?? []).map((item) => presentAttachment(item)),
       })),
   };
 }

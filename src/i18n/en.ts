@@ -625,6 +625,7 @@ export const en: Dict = {
     ticketMissing: "Ticket not found",
     replyRequired: "Write a reply",
     rateLimited: "Too many attempts. Try again shortly.",
+    payloadTooLarge: "Request is too large",
     attachmentInvalid: "That screenshot address is not valid",
     postInvalid: "Check the article",
     mockPayPage: "Finish mock payment from the pay panel",

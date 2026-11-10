@@ -7,6 +7,9 @@ import { POST as adminReply } from "@/app/api/admin/tickets/[id]/reply/route";
 import { GET as adminTickets } from "@/app/api/admin/tickets/route";
 import { GET as publicOrder } from "@/app/api/public/orders/[token]/route";
 import { POST as upload } from "@/app/api/uploads/route";
+import { GET as readPublicFile } from "@/app/api/uploads/file/[...path]/route";
+import { GET as readAttachment } from "@/app/api/tickets/attachments/[id]/route";
+import { GET as readPending } from "@/app/api/tickets/uploads/[id]/route";
 import { GET as readTicket } from "@/app/api/tickets/[id]/route";
 import { POST as replyTicket } from "@/app/api/tickets/[id]/reply/route";
 import { POST as createTicket } from "@/app/api/tickets/route";
@@ -129,7 +132,11 @@ it("keeps internal notes off the customer ticket and the public order", async ()
   expect(customerJson).toContain("WAITING_CUSTOMER");
 
   const shared = await publicOrder(jsonRequest(`/api/public/orders/${order.publicToken}`, { method: "GET" }), routeContext({ token: order.publicToken }));
-  expect(JSON.stringify(await shared.json())).not.toContain(note);
+  const sharedBody = JSON.stringify(await shared.json());
+  expect(sharedBody).not.toContain(note);
+  expect(sharedBody).not.toContain("请再试一次");
+  expect(sharedBody).not.toContain("/uploads/tickets/");
+  expect(sharedBody).not.toContain("/api/tickets/attachments/");
 
   const audits = await prisma.auditLog.findMany({ where: { targetId: ticket.id } });
   expect(audits.map((row) => row.action).sort()).toEqual(["ticket.note", "ticket.reply"]);
@@ -209,9 +216,9 @@ it("emails the admin address for a new ticket and a paid order, and still saves 
   expect(await prisma.ticket.findFirst({ where: { subject: "邮件挂了", userId: owner.user.id } })).toBeTruthy();
 });
 
-it("rate-limits ticket creation and accepts a validated screenshot", async () => {
+it("rate-limits ticket creation", async () => {
   const ip = nextIp();
-  const owner = await signIn("USER", ip);
+  await signIn("USER", ip);
   for (let n = 0; n < 3; n += 1) {
     const res = await openTicket(ip, { subject: `限额${n}` });
     expect(res.status).toBe(200);
@@ -219,27 +226,125 @@ it("rate-limits ticket creation and accepts a validated screenshot", async () =>
   const limited = await openTicket(ip, { subject: "超限了" });
   expect(limited.status).toBe(429);
   expect(limited.headers.get("retry-after")).toBeTruthy();
+});
 
-  const png = await sharp({
-    create: { width: 12, height: 8, channels: 3, background: { r: 20, g: 40, b: 80 } },
+it("keeps screenshots off the public uploads route", async () => {
+  const ip = nextIp();
+  const owner = await signIn("USER", ip);
+  const previous = {
+    R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+    R2_PUBLIC_BUCKET: process.env.R2_PUBLIC_BUCKET,
+    R2_PUBLIC_BASE_URL: process.env.R2_PUBLIC_BASE_URL,
+  };
+  process.env.R2_ACCOUNT_ID = "account";
+  process.env.R2_ACCESS_KEY_ID = "key";
+  process.env.R2_SECRET_ACCESS_KEY = "secret";
+  process.env.R2_PUBLIC_BUCKET = "bucket";
+  process.env.R2_PUBLIC_BASE_URL = "https://cdn.example";
+
+  const wide = await sharp({
+    create: { width: 2000, height: 20, channels: 3, background: { r: 20, g: 40, b: 80 } },
   }).png().toBuffer();
+  const dirty = Buffer.concat([wide, Buffer.from("<?php echo 1; <script>alert(1)</script>")]);
   const form = new FormData();
   form.set("purpose", "ticket");
-  form.set("file", new File([png], "shot.png", { type: "image/png" }));
+  form.set("file", new File([dirty], "shot.png", { type: "image/png" }));
   const headers = new Headers({ "x-real-ip": ip });
   const uploaded = await upload(new NextRequest("http://127.0.0.1/api/uploads", { method: "POST", headers, body: form }));
+  for (const [name, value] of Object.entries(previous)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
   expect(uploaded.status).toBe(200);
   const { url } = await uploaded.json();
-  expect(url).toMatch(/^\/uploads\/tickets\/[0-9a-f-]+\.webp$/);
+  expect(url).toMatch(/^\/api\/tickets\/uploads\/[a-z0-9]+$/);
+  expect(url).not.toContain("/uploads/tickets/");
+
+  const uploadId = url.split("/").pop() ?? "";
+  const pending = await prisma.ticketUpload.findUnique({ where: { id: uploadId } });
+  expect(pending?.userId).toBe(owner.user.id);
+  expect(pending?.key).toMatch(/^tickets\/[0-9a-f-]+\.webp$/);
+  const meta = await sharp(`public/uploads/${pending?.key}`).metadata();
+  expect(meta.format).toBe("webp");
+  expect(meta.width).toBeLessThanOrEqual(1600);
+  const storedBytes = await (await import("node:fs/promises")).readFile(`public/uploads/${pending?.key}`);
+  expect(storedBytes.includes(Buffer.from("<?php"))).toBe(false);
+  expect(storedBytes.includes(Buffer.from("<script>"))).toBe(false);
+
+  const preview = await readPending(jsonRequest(url, { ip, method: "GET" }), routeContext({ id: uploadId }));
+  expect(preview.status).toBe(200);
+  expect(preview.headers.get("content-type")).toBe("image/webp");
+  expect(preview.headers.get("cache-control")).toBe("private, no-store");
+
+  const publicFile = await readPublicFile(
+    new NextRequest(`http://127.0.0.1/uploads/${pending?.key}`),
+    { params: Promise.resolve({ path: (pending?.key ?? "").split("/") }) },
+  );
+  expect(publicFile.status).toBe(404);
 
   const other = nextIp();
   await signIn("USER", other);
+  expect((await readPending(jsonRequest(url, { ip: other, method: "GET" }), routeContext({ id: uploadId }))).status).toBe(404);
   const foreign = await createTicket(jsonRequest("/api/tickets", {
     ip: other,
     body: { subject: "别人的图", category: "other", body: "试试", attachments: [url] },
   }));
-  expect(foreign.status).toBe(200);
-  const stored = await prisma.ticketAttachment.findFirst({ where: { url } });
-  expect(stored).toBeTruthy();
+  expect(foreign.status).toBe(400);
+  expect(await prisma.ticketAttachment.count({ where: { url: pending?.key } })).toBe(0);
+
+  expect((await login(jsonRequest("/api/auth/login", { ip, body: { email: owner.email, password: "secret12" } }))).status).toBe(200);
+  const created = await createTicket(jsonRequest("/api/tickets", {
+    ip,
+    body: { subject: "带截图", category: "technical", body: "看图", attachments: [url] },
+  }));
+  expect(created.status).toBe(200);
+  const { ticket } = await created.json();
+  const shot = ticket.replies[0].attachments[0];
+  expect(shot.url).toBe(`/api/tickets/attachments/${shot.id}`);
+  expect(JSON.stringify(ticket)).not.toContain("/uploads/tickets/");
+  expect(await prisma.ticketUpload.findUnique({ where: { id: uploadId } })).toBeNull();
+
+  const ownFile = await readAttachment(jsonRequest(shot.url, { ip, method: "GET" }), routeContext({ id: shot.id }));
+  expect(ownFile.status).toBe(200);
+  expect(ownFile.headers.get("x-content-type-options")).toBe("nosniff");
+
+  await signIn("USER", other);
+  expect((await readAttachment(jsonRequest(shot.url, { ip: other, method: "GET" }), routeContext({ id: shot.id }))).status).toBe(404);
+  expect((await readTicket(jsonRequest(`/api/tickets/${ticket.id}`, { ip: other, method: "GET" }), routeContext({ id: ticket.id }))).status).toBe(404);
+
+  const adminIp = nextIp();
+  await signIn("ADMIN", adminIp);
+  const adminFile = await readAttachment(jsonRequest(shot.url, { ip: adminIp, method: "GET" }), routeContext({ id: shot.id }));
+  expect(adminFile.status).toBe(200);
   expect(owner.email).toContain("@");
+});
+
+it("rejects a cross-site ticket post and an oversized ticket body", async () => {
+  const ip = nextIp();
+  await signIn("USER", ip);
+  const before = await prisma.ticket.count();
+  const cross = await createTicket(jsonRequest("/api/tickets", {
+    ip,
+    headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+    body: { subject: "跨站", category: "other", body: "不行" },
+  }));
+  expect(cross.status).toBe(403);
+  const huge = await createTicket(jsonRequest("/api/tickets", {
+    ip,
+    body: { subject: "太大", category: "other", body: "x".repeat(20_000) },
+  }));
+  expect(huge.status).toBe(413);
+  expect(await prisma.ticket.count()).toBe(before);
+
+  const fake = new FormData();
+  fake.set("purpose", "ticket");
+  fake.set("file", new File([Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>")], "x.svg", { type: "image/svg+xml" }));
+  const rejected = await upload(new NextRequest("http://127.0.0.1/api/uploads", {
+    method: "POST",
+    headers: new Headers({ "x-real-ip": ip, "content-length": String(8 * 1024 * 1024) }),
+    body: fake,
+  }));
+  expect(rejected.status).toBe(413);
 });

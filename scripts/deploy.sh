@@ -16,6 +16,13 @@
 # After the build, the release is chowned to the service user so Next can
 # write .next/cache. Symlinks to shared data are not followed.
 #
+# After a healthy switch, only the newest KEEP_RELEASES directories are kept
+# (default 5). The current release and the previous target are never deleted,
+# even when they are older than that window.
+#
+# --rollback points the symlink at the previous release, restarts, and checks
+# /api/health. It does not build, migrate, seed, or delete uploads.
+#
 # See docs/DEPLOY.md.
 set -euo pipefail
 umask 022
@@ -30,10 +37,13 @@ ENV_FILE="${ENV_FILE:-$SHARED_DIR/.env}"
 DB_FILE="${DB_FILE:-$SHARED_DIR/production.db}"
 UPLOADS_DIR="${UPLOADS_DIR:-$SHARED_DIR/uploads}"
 RELEASE_ENV="${RELEASE_ENV:-$SHARED_DIR/release.env}"
+PREVIOUS_FILE="${PREVIOUS_FILE:-$SHARED_DIR/previous-release}"
+KEEP_RELEASES="${KEEP_RELEASES:-5}"
 
 REPO=""
 REF="HEAD"
 FETCH=1
+ROLLBACK=0
 
 phase="check"
 release=""
@@ -47,9 +57,17 @@ release_env_backup=""
 usage() {
   cat <<'EOF'
 Usage: deploy.sh [--ref <git-ref>] [--repo <path>] [--no-fetch]
+       deploy.sh --rollback
 
 Build a new release, migrate only when needed, switch /opt/aisubscr-current,
 and roll back if /api/health does not report the new commit.
+
+--rollback switches to the previous release and health-checks it. A failed
+health check restores the release that was current. It does not build, migrate,
+or seed.
+
+KEEP_RELEASES (default 5) is how many release directories to keep. The current
+release and the previous target are never deleted.
 
 Does not seed the database and does not delete uploads.
 EOF
@@ -84,6 +102,10 @@ while [[ $# -gt 0 ]]; do
       FETCH=0
       shift
       ;;
+    --rollback)
+      ROLLBACK=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -94,20 +116,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$ROLLBACK" -eq 1 && "$REF" != "HEAD" ]]; then
+  die "--rollback does not take --ref"
+fi
+
 if [[ -z "$REPO" ]]; then
   REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
 
-command -v git >/dev/null 2>&1 || die "git is required"
-command -v npm >/dev/null 2>&1 || die "npm is required"
 command -v node >/dev/null 2>&1 || die "node is required"
 command -v curl >/dev/null 2>&1 || die "curl is required"
 command -v flock >/dev/null 2>&1 || die "flock is required"
-
-[[ -d "$REPO/.git" || -f "$REPO/.git" ]] || die "$REPO is not a git checkout"
-[[ -f "$ENV_FILE" ]] || die "missing $ENV_FILE"
-[[ -f "$DB_FILE" ]] || die "missing $DB_FILE"
-[[ -d "$UPLOADS_DIR" ]] || die "missing $UPLOADS_DIR (move the live public/uploads here; this script will not create or delete it)"
+if [[ "$ROLLBACK" -eq 0 ]]; then
+  command -v git >/dev/null 2>&1 || die "git is required"
+  command -v npm >/dev/null 2>&1 || die "npm is required"
+  [[ -d "$REPO/.git" || -f "$REPO/.git" ]] || die "$REPO is not a git checkout"
+  [[ -f "$ENV_FILE" ]] || die "missing $ENV_FILE"
+  [[ -f "$DB_FILE" ]] || die "missing $DB_FILE"
+  [[ -d "$UPLOADS_DIR" ]] || die "missing $UPLOADS_DIR (move the live public/uploads here; this script will not create or delete it)"
+fi
 if [[ -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
   die "$CURRENT_LINK exists and is not a symlink"
 fi
@@ -310,20 +337,115 @@ wait_healthy() {
   return 1
 }
 
-prune_old_releases() {
-  local path real current_real previous_real
-  current_real="$(readlink -f -- "$release")"
-  previous_real=""
-  if [[ -n "$previous_target" ]]; then
-    previous_real="$(readlink -f -- "$previous_target" || true)"
+inside_releases() {
+  local dir="$1" real releases_real
+  [[ -n "$dir" ]] || return 1
+  real="$(readlink -f -- "$dir" 2>/dev/null || true)"
+  releases_real="$(readlink -f -- "$RELEASES_DIR")"
+  [[ -n "$real" && "$real" == "$releases_real/"* ]]
+}
+
+record_previous() {
+  local target="$1" tmp real
+  [[ -n "$target" && -d "$target" ]] || return 0
+  real="$(readlink -f -- "$target")"
+  inside_releases "$real" || return 0
+  tmp="$(mktemp "${SHARED_DIR}/previous-release.XXXXXX")"
+  printf '%s\n' "$real" > "$tmp"
+  chmod 600 "$tmp"
+  mv -f -- "$tmp" "$PREVIOUS_FILE"
+}
+
+# The recorded previous release, or the newest other commit directory.
+select_previous() {
+  local current="$1" recorded="" path real best="" best_mtime=-1 mtime
+  current="$(readlink -f -- "$current")"
+  if [[ -f "$PREVIOUS_FILE" ]]; then
+    IFS= read -r recorded < "$PREVIOUS_FILE" || recorded=""
+  fi
+  if [[ -n "$recorded" && -d "$recorded" ]]; then
+    real="$(readlink -f -- "$recorded")"
+    if [[ "$real" != "$current" ]] && inside_releases "$real" && [[ "$(basename -- "$real")" =~ ^[0-9a-f]{40}$ ]]; then
+      printf '%s\n' "$real"
+      return 0
+    fi
   fi
   for path in "$RELEASES_DIR"/*; do
     [[ -d "$path" ]] || continue
     real="$(readlink -f -- "$path")"
+    [[ "$real" == "$current" ]] && continue
+    [[ "$(basename -- "$real")" =~ ^[0-9a-f]{40}$ ]] || continue
+    mtime="$(stat -c '%Y' -- "$path")"
+    if [[ "$mtime" -gt "$best_mtime" ]]; then
+      best_mtime="$mtime"
+      best="$real"
+    fi
+  done
+  [[ -n "$best" ]] || return 1
+  printf '%s\n' "$best"
+}
+
+perform_rollback() {
+  local current previous sha
+  [[ -L "$CURRENT_LINK" ]] || die "$CURRENT_LINK is not a symlink"
+  current="$(readlink -f -- "$CURRENT_LINK" || true)"
+  [[ -n "$current" && -d "$current" ]] || die "current release is missing"
+  previous="$(select_previous "$current")" || die "no previous release to roll back to"
+  sha="$(basename -- "$previous")"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die "previous release is not a commit directory"
+  previous_target="$current"
+  phase="switching"
+  save_release_env
+  write_release_env "$sha"
+  own_release "$previous" || die "could not chown $previous to $SERVICE_USER"
+  switch_current "$previous" || die "could not switch $CURRENT_LINK"
+  switched=1
+  phase="switched"
+  "${SYSTEMCTL[@]}" restart "$SERVICE"
+  if ! wait_healthy "$sha"; then
+    echo "deploy.sh: rolled-back release failed the health check; restoring ${current}" >&2
+    rollback
+    phase="rolled_back"
+    exit 1
+  fi
+  phase="done"
+  record_previous "$current" || echo "deploy.sh: could not record the release we left" >&2
+  echo "deploy.sh: rolled back to ${sha}"
+}
+
+# Keep the newest KEEP_RELEASES directories. Never delete the current release
+# or the previous target, even when that previous directory is older than the window.
+prune_old_releases() {
+  local keep path real current_real previous_real recorded="" index=0 listed _mtime
+  keep="${KEEP_RELEASES:-5}"
+  [[ "$keep" =~ ^[0-9]+$ ]] || keep=5
+  current_real="$(readlink -f -- "$release")"
+  previous_real=""
+  if [[ -n "$previous_target" ]]; then
+    previous_real="$(readlink -f -- "$previous_target" 2>/dev/null || true)"
+  fi
+  if [[ -f "$PREVIOUS_FILE" ]]; then
+    IFS= read -r recorded < "$PREVIOUS_FILE" || recorded=""
+    if [[ -n "$recorded" ]]; then
+      recorded="$(readlink -f -- "$recorded" 2>/dev/null || true)"
+    fi
+  fi
+  listed="$(mktemp)"
+  for path in "$RELEASES_DIR"/*; do
+    [[ -d "$path" ]] || continue
+    printf '%s\t%s\n' "$(stat -c '%Y' -- "$path")" "$path" >> "$listed"
+  done
+  while IFS=$'\t' read -r _mtime path; do
+    [[ -n "${path:-}" ]] || continue
+    index=$((index + 1))
+    real="$(readlink -f -- "$path")"
     [[ "$real" == "$current_real" ]] && continue
     [[ -n "$previous_real" && "$real" == "$previous_real" ]] && continue
+    [[ -n "$recorded" && "$real" == "$recorded" ]] && continue
+    [[ "$index" -le "$keep" ]] && continue
     safe_rm_release "$path" || echo "deploy.sh: left $path in place" >&2
-  done
+  done < <(sort -nr -- "$listed")
+  rm -f -- "$listed"
 }
 
 mkdir -p -- "$RELEASES_DIR"
@@ -334,6 +456,11 @@ fi
 
 trap on_exit EXIT
 require_unit
+
+if [[ "$ROLLBACK" -eq 1 ]]; then
+  perform_rollback
+  exit 0
+fi
 
 if [[ "$FETCH" -eq 1 ]]; then
   git -C "$REPO" fetch --prune origin
@@ -400,6 +527,7 @@ if ! wait_healthy "$SHA"; then
   exit 1
 fi
 
+phase="done"
+record_previous "$previous_target" || echo "deploy.sh: could not record the previous release" >&2
 prune_old_releases || true
 echo "deploy.sh: ${SHA} is serving"
-phase="done"

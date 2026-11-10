@@ -6,12 +6,16 @@ import { prisma } from "../db";
 import { formatRmb } from "../money";
 import { logApiError } from "../server-log";
 import { siteUrl } from "../site";
+import { singleLine, prepareOutbound } from "./headers";
 import { getMailer } from "./index";
 import { mailDocument, paragraph } from "./template";
 import type { OutboundMail } from "./types";
 
 function fill(template: string, values: Record<string, string>) {
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => {
+    const value = values[key];
+    return value === undefined ? "" : singleLine(value);
+  });
 }
 
 type Notice = Omit<OutboundMail, "to">;
@@ -148,9 +152,19 @@ async function adminNotifyTarget(kind: "paid" | "ticket") {
 
 /** Notices must not fail the action that triggered them. */
 export async function deliverQuietly(mail: OutboundMail, route: string) {
+  const safe = prepareOutbound(mail);
+  if (!safe) {
+    logApiError({
+      requestId: randomUUID(),
+      route,
+      status: 500,
+      error: new Error("refusing mail with an unsafe recipient or subject"),
+    });
+    return;
+  }
   try {
     const mailer = getMailer();
-    await mailer.send(mail);
+    await mailer.send(safe);
     if (mailer.name === "smtp") {
       console.info(`[aisubscr mail] sent route=${route} to=${mail.to}`);
     }
