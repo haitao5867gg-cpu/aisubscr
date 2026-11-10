@@ -4,8 +4,14 @@ import { readR2Config, type R2Config } from "./r2-config";
 
 const KEY = /^(products|contact-qr|tickets)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
 
+/**
+ * Local upload directory. `UPLOADS_DIR` may be absolute or relative to cwd.
+ * Unset means `public/uploads`, which production links to the shared uploads directory.
+ */
 export function uploadsRoot() {
-  return path.join(process.cwd(), "public", "uploads");
+  const configured = process.env.UPLOADS_DIR?.trim();
+  if (configured) return path.resolve(configured);
+  return path.resolve(process.cwd(), "public", "uploads");
 }
 
 export function assertStorageKey(key: string) {
@@ -44,7 +50,8 @@ export async function putToR2(cfg: R2Config, key: string, body: Buffer) {
 
 /**
  * Store a WebP that is already validated. Uses R2 when every R2 variable is set,
- * and public/uploads otherwise. The returned URL is what product and contact pages render.
+ * and `uploadsRoot()` otherwise. The returned URL is what product and contact pages render.
+ * The key is `<folder>/<uuid>.webp` and is not rewritten, so the URL can be cached as immutable.
  */
 export async function storePublicWebp(key: string, body: Buffer, put: ObjectPut = putToR2) {
   assertStorageKey(key);

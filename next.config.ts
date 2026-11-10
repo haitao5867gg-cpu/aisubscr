@@ -29,10 +29,18 @@ const nextConfig: NextConfig = {
       { source: "/plans/:id", destination: "/products/:id", permanent: true },
     ];
   },
+  async rewrites() {
+    // beforeFiles runs before the public/ snapshot. next start does not see
+    // files added under public/uploads after boot, so /uploads/* must hit the route.
+    return {
+      beforeFiles: [{ source: "/uploads/:path*", destination: "/api/uploads/file/:path*" }],
+    };
+  },
   async headers() {
     return [
       { source: "/_next/static/:path*", headers: longCache },
-      { source: "/uploads/:path*", headers: publicCache },
+      // /uploads cache is set by the route handler. A header here would also
+      // mark 404s immutable, because next.config headers overwrite the route.
       { source: "/_next/image", headers: publicCache },
       {
         source: "/:file(favicon.ico|icon.svg|apple-icon.png|og.png|robots.txt|sitemap.xml|manifest.webmanifest)",
