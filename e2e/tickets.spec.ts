@@ -19,13 +19,15 @@ async function register(page: import("@playwright/test").Page, email: string) {
 
 test("a customer opens a ticket and cannot read someone else's", async ({ page }) => {
   const email = `ticket-${Date.now()}@example.com`;
+  const subject = `支付后没有看到订单 ${email}`;
   await register(page, email);
   await page.goto("/tickets/new");
-  await page.getByRole("textbox", { name: "主题" }).fill("支付后没有看到订单");
+  await page.getByRole("textbox", { name: "主题" }).fill(subject);
   await page.getByLabel("分类").selectOption("billing");
   await page.getByLabel("问题描述").fill("订单号在个人中心找不到。");
   await page.getByRole("button", { name: "提交" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "支付后没有看到订单" })).toBeVisible();
+  await expect(page).toHaveURL(/\/tickets\/(?!new(?:$|\/))/, { timeout: 20_000 });
+  await expect(page.getByRole("heading", { level: 1, name: subject })).toBeVisible();
   const ticketUrl = page.url();
 
   await page.getByLabel("回复").fill("补充：是刚才那一笔。");
@@ -42,7 +44,7 @@ test("a customer opens a ticket and cannot read someone else's", async ({ page }
   }
 
   await page.getByRole("button", { name: "退出" }).click();
-  await page.setExtraHTTPHeaders({ "x-real-ip": "203.0.113.19" });
+  await page.setExtraHTTPHeaders({ "x-real-ip": `198.51.100.${(Date.now() % 200) + 20}` });
   const other = `other-${Date.now()}@example.com`;
   await register(page, other);
   await page.goto(ticketUrl);
@@ -54,11 +56,12 @@ test("a customer opens a ticket and cannot read someone else's", async ({ page }
   await page.getByLabel("密码").fill("e2e-admin-pass");
   await page.getByRole("button", { name: "登录" }).click();
   await expect(page).toHaveURL(/\/admin\/tickets/);
-  await expect(page.getByRole("link", { name: /支付后没有看到订单/ })).toBeVisible();
+  const row = page.getByRole("link", { name: email });
+  await expect(row).toBeVisible();
   if (!process.env.CI) {
     await page.screenshot({ path: "/opt/cursor/artifacts/admin-ticket-inbox.png", fullPage: true });
   }
-  await page.getByRole("link", { name: /支付后没有看到订单/ }).click();
+  await row.click();
   await page.getByLabel("回复").fill("已经在订单列表里，请刷新。");
   await page.getByRole("button", { name: "回复" }).click();
   await expect(page.getByText("已经在订单列表里，请刷新。")).toBeVisible();

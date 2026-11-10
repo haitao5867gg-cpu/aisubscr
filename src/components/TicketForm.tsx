@@ -77,15 +77,17 @@ export function TicketForm({
             }),
           });
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
+          const ticketId = typeof data.ticket?.id === "string" ? data.ticket.id : "";
+          if (!res.ok || !ticketId) {
             setError(typeof data.error === "string" && data.error ? data.error : zh.shop.ticketFailed);
+            setBusy(false);
             return;
           }
-          router.push(`/tickets/${data.ticket.id}`);
-          router.refresh();
+          // Do not router.refresh() here. It revalidates this form page and can
+          // cancel the navigation, so the ticket is saved but the heading never appears.
+          router.push(`/tickets/${ticketId}`);
         } catch {
           setError(zh.common.requestFailed);
-        } finally {
           setBusy(false);
         }
       }}
