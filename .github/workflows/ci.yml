@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MAIL_PROVIDER: console
+      PAYMENT_PROVIDER: mock
+      SESSION_SECRET: ci-session-secret-at-least-32-characters
+      NEXT_TELEMETRY_DISABLED: "1"
+      GIT_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Database for the production build
+        run: |
+          mkdir -p /tmp/aisubscr-ci
+          npx prisma migrate deploy
+        env:
+          DATABASE_URL: file:/tmp/aisubscr-ci/build.db
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          DATABASE_URL: file:/tmp/aisubscr-ci/build.db
+
+      - name: End-to-end smoke
+        run: npm run test:e2e
+        env:
+          CI: "true"
+          DATABASE_URL: file:/tmp/aisubscr-e2e/test.db

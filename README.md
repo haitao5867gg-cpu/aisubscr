@@ -184,10 +184,38 @@ npx prisma migrate deploy
 样式 token 集中在 `src/app/globals.css`（`--primary`、`--canvas`、`--radius`、`--shadow-soft` 等）。  
 换肤改这些变量即可。页面布局是商城自己的结构，不要再套用资讯站或第三方订单站的版式。
 
+## 健康检查与错误日志
+
+`GET /api/health` 返回 `{ ok, db, version, commit }`。它只做一次 `SELECT 1`。`ok` 与 `db` 在数据库可连时为 `true`，否则 HTTP 503。`version` 来自 `APP_VERSION`，否则是 `package.json`。`commit` 只在 `GIT_COMMIT`（或 `SOURCE_COMMIT`）是 7–40 位十六进制时出现，否则为 `null`。响应里没有环境变量、数据库路径或密钥。
+
+这条路径不走页面的 CSP nonce，也不走登录 / 注册 / 重置密码的频率限制。
+
+API 抛错，以及登录、注册、忘记密码、下单里吞掉的服务器错误，会在 stderr 打一行 JSON：`requestId`、`route`、`status`。systemd 会收进 journal：`journalctl -u aisubscr -o cat`。日志会抹掉会话密钥、SMTP 密码和 `file:` 数据库地址。
+
+`/plans` 与 `/plans/:id` 永久跳到 `/products` 与 `/products/:id`。未知地址使用和商城一致的 404 页。
+
+## 测试
+
+单元和接口测试用 Vitest，打到临时 SQLite（`prisma migrate deploy`，不 seed）。浏览器冒烟用 Playwright（Chromium）。
+
+```bash
+npm test          # vitest：注册登录退出、登录 5 次锁定、忘记密码、购物车与模拟支付、重复确认、管理接口 401/403、健康检查
+npm run typecheck
+npm run lint
+npm run build     # 端到端需要先构建
+npm run test:e2e  # 首页、/plans 跳转、404、未知邮箱去注册、注册登录退出、加购并模拟支付
+```
+
+忘记密码的验证码在测试里走控制台邮件（`MAIL_PROVIDER=console`），从日志里的 `AISUBSCR_MAIL_CONSOLE` 读取。生产部署仍然只跑 `npx prisma migrate deploy`，不要 seed。
+
 ## 脚本
 
 - `npm run dev` — 开发服务器 `0.0.0.0:3000`
 - `npm run build` / `npm start` — 生产构建与启动
+- `npm run typecheck` — `tsc --noEmit`
+- `npm run lint` — ESLint
+- `npm test` — Vitest（临时 SQLite）
+- `npm run test:e2e` — Playwright 冒烟（需先 `npm run build`）
 - `npm run db:setup` — 本地推送 schema 并 seed（生产不要跑，会重置管理员密码）
 - `npx prisma migrate deploy` — 按 `prisma/migrations` 升级数据库（生产用，不含 seed）
 
