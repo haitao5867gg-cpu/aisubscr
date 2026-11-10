@@ -12,8 +12,10 @@ const map: Record<string, string> = {
   EXPIRED: "badge-example",
   FAILED: "badge-refunded",
   OPEN: "badge-pending",
+  WAITING_CUSTOMER: "badge-paying",
+  RESOLVED: "badge-completed",
   REPLIED: "badge-paid",
-  CLOSED: "badge-completed",
+  CLOSED: "badge-example",
 };
 
 export async function StatusBadge({

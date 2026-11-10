@@ -4,6 +4,7 @@ import { getLocale } from "@/i18n/server";
 import { expireDueOrders } from "@/lib/order-expiry";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { customerReplies } from "@/lib/tickets";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const t = getDict(await getLocale());
@@ -15,7 +16,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   await expireDueOrders();
   const order = await prisma.order.findFirst({
     where: { id, userId: session.userId },
-    include: { items: true, tickets: { include: { replies: true } } },
+    include: { items: true, tickets: { include: { replies: customerReplies } } },
   });
   if (!order) return NextResponse.json({ error: t.api.orderMissing }, { status: 404 });
   return NextResponse.json({ order });

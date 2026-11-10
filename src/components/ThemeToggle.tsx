@@ -14,7 +14,7 @@ export function ThemeToggle() {
       type="button"
       className="btn btn-ghost"
       title={`${zh.common.theme}: ${label}`}
-      aria-label={zh.common.theme}
+      aria-label={`${zh.common.theme}: ${label}`}
       onClick={() => setTheme(next)}
     >
       {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "💻"}

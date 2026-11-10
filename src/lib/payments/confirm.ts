@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
+import { recordPaid } from "../analytics";
 import { prisma } from "../db";
-import { deliverOrderPaid } from "../mail/notices";
+import { deliverAdminPaidOrder, deliverOrderPaid } from "../mail/notices";
 import { expireOrderIfDue } from "../order-expiry";
 import { logApiError } from "../server-log";
 
@@ -39,6 +40,12 @@ async function notifyPaid(orderId: string) {
       totalCents: order.totalCents,
       items: order.items,
     });
+    await deliverAdminPaidOrder({
+      email: order.user.email,
+      orderNo: order.orderNo,
+      totalCents: order.totalCents,
+    });
+    await recordPaid(order.id);
   } catch (error) {
     logApiError({ requestId: "order-paid", route: "mail:order-paid", status: 500, error });
   }

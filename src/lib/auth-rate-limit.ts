@@ -31,6 +31,38 @@ const LIMITS = {
     email: [{ windowMs: 15 * 60 * 1000, max: 5 }],
     ip: [{ windowMs: 15 * 60 * 1000, max: 20 }],
   },
+  // The "email" bucket is the signed-in user id. Creation and replies share
+  // the one-hour cleanup already used by login and registration.
+  ticketCreate: {
+    email: [
+      { windowMs: 10 * 60 * 1000, max: 3 },
+      { windowMs: HOUR_MS, max: 10 },
+    ],
+    ip: [
+      { windowMs: 10 * 60 * 1000, max: 6 },
+      { windowMs: HOUR_MS, max: 20 },
+    ],
+  },
+  ticketReply: {
+    email: [
+      { windowMs: 10 * 60 * 1000, max: 8 },
+      { windowMs: HOUR_MS, max: 40 },
+    ],
+    ip: [
+      { windowMs: 10 * 60 * 1000, max: 15 },
+      { windowMs: HOUR_MS, max: 60 },
+    ],
+  },
+  ticketUpload: {
+    email: [
+      { windowMs: 10 * 60 * 1000, max: 8 },
+      { windowMs: HOUR_MS, max: 20 },
+    ],
+    ip: [
+      { windowMs: 10 * 60 * 1000, max: 12 },
+      { windowMs: HOUR_MS, max: 30 },
+    ],
+  },
 } as const;
 
 type RateAction = keyof typeof LIMITS;
@@ -115,4 +147,16 @@ export function peekTotpLimit(email: string, ip: string) {
 
 export function recordTotpFailure(email: string, ip: string) {
   return inspect("totp", email, ip, true);
+}
+
+export function consumeTicketCreate(userId: string, ip: string) {
+  return inspect("ticketCreate", userId, ip, true);
+}
+
+export function consumeTicketReply(userId: string, ip: string) {
+  return inspect("ticketReply", userId, ip, true);
+}
+
+export function consumeTicketUpload(userId: string, ip: string) {
+  return inspect("ticketUpload", userId, ip, true);
 }

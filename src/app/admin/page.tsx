@@ -26,7 +26,7 @@ export default async function AdminHome() {
       orderBy: { createdAt: "desc" },
       take: 8,
     }),
-    prisma.ticket.count({ where: { status: { in: ["OPEN", "REPLIED"] } } }),
+    prisma.ticket.count({ where: { status: "OPEN" } }),
   ]);
   const summary = summarizeShop({ orders, users });
   const rangeLabel = {

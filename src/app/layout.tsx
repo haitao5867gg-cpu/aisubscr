@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { AnalyticsBeacon } from "@/components/AnalyticsBeacon";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { getDict } from "@/i18n";
@@ -52,7 +53,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBoot }} />
         <LocaleProvider locale={locale}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <AnalyticsBeacon />
+            {children}
+          </ThemeProvider>
         </LocaleProvider>
       </body>
     </html>

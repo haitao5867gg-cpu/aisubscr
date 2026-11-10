@@ -5,7 +5,7 @@ import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { isAllowedImageReference } from "@/lib/image-ref";
-import { decodeQrImage, settingsView, type SettingsRow } from "@/lib/site-settings";
+import { adminSettingsView, decodeQrImage, type SettingsRow } from "@/lib/site-settings";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
 const schema = z.object({
@@ -20,6 +20,9 @@ const schema = z.object({
   announcementEnabled: z.boolean().optional(),
   orderExpireMinutes: z.number().int().min(1).max(24 * 60).optional(),
   adminTotpRequired: z.boolean().optional(),
+  adminNotifyEmail: z.string().trim().max(120).optional(),
+  notifyPaidOrders: z.boolean().optional(),
+  notifyNewTickets: z.boolean().optional(),
   qrImageUrl: z.string().trim().min(1).max(500).optional(),
   qrImageMime: z.enum(["image/png", "image/jpeg", "image/webp"]).nullable().optional(),
   qrImageBase64: z.string().max(800_000).nullable().optional(),
@@ -27,7 +30,7 @@ const schema = z.object({
 });
 
 function snapshot(row: SettingsRow) {
-  return settingsView(row);
+  return adminSettingsView(row);
 }
 
 export async function GET() {
@@ -40,7 +43,7 @@ export async function GET() {
   }
   let settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
   if (!settings) settings = await prisma.siteSetting.create({ data: { id: "default" } });
-  return NextResponse.json({ settings: settingsView(settings) });
+  return NextResponse.json({ settings: adminSettingsView(settings) });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -58,6 +61,9 @@ export async function PATCH(req: NextRequest) {
   if (parsed.data.contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsed.data.contactEmail)) {
     return NextResponse.json({ error: t.auth.emailInvalid }, { status: 400 });
   }
+  if (parsed.data.adminNotifyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsed.data.adminNotifyEmail)) {
+    return NextResponse.json({ error: t.auth.emailInvalid }, { status: 400 });
+  }
   const data: {
     siteName?: string;
     supportEmail?: string;
@@ -70,6 +76,9 @@ export async function PATCH(req: NextRequest) {
     announcementEnabled?: boolean;
     orderExpireMinutes?: number;
     adminTotpRequired?: boolean;
+    adminNotifyEmail?: string;
+    notifyPaidOrders?: boolean;
+    notifyNewTickets?: boolean;
     qrImageUrl?: string | null;
     qrImageMime?: string | null;
     qrImageData?: string | null;
@@ -86,6 +95,9 @@ export async function PATCH(req: NextRequest) {
     "announcementEnabled",
     "orderExpireMinutes",
     "adminTotpRequired",
+    "adminNotifyEmail",
+    "notifyPaidOrders",
+    "notifyNewTickets",
   ] as const;
   for (const key of fields) {
     const value = parsed.data[key];
@@ -126,5 +138,5 @@ export async function PATCH(req: NextRequest) {
     });
     return saved;
   });
-  return NextResponse.json({ settings: settingsView(settings) });
+  return NextResponse.json({ settings: adminSettingsView(settings) });
 }

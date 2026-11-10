@@ -35,7 +35,7 @@ export function validateUpload(bytes: Buffer, declared: string): ImageMime | nul
   return sniffed;
 }
 
-export async function toWebp(bytes: Buffer, purpose: "product" | "contact-qr") {
+export async function toWebp(bytes: Buffer, purpose: "product" | "contact-qr" | "ticket") {
   const maxEdge = purpose === "contact-qr" ? 800 : 1600;
   return sharp(bytes, { failOn: "error", limitInputPixels: 20_000_000, animated: false })
     .rotate()

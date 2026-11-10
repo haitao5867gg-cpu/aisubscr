@@ -30,6 +30,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const zh = getDict(await getLocale());
   const links = [
     { href: "/admin", label: zh.admin.overview },
+    { href: "/admin/analytics", label: zh.admin.analytics },
     { href: "/admin/orders", label: zh.admin.orders },
     { href: "/admin/products", label: zh.admin.products },
     { href: "/admin/users", label: zh.admin.users },
@@ -41,6 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/settings", label: zh.admin.settings },
     { href: "/admin/security", label: zh.admin.security },
   ];
+  const current = (href: string) => (href === "/admin" ? path === "/admin" : path === href || path.startsWith(`${href}/`));
 
   return (
     <>
@@ -52,7 +54,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="admin-shell">
           <nav className="card side-nav" aria-label={zh.admin.title}>
             {links.map((link) => (
-              <Link key={link.href} href={link.href}>
+              <Link key={link.href} href={link.href} className={current(link.href) ? "active" : undefined} aria-current={current(link.href) ? "page" : undefined}>
                 {link.label}
               </Link>
             ))}

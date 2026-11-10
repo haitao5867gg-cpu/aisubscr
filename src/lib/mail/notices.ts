@@ -1,8 +1,10 @@
 import { randomUUID } from "crypto";
 import type { Dict } from "@/i18n";
 import { getT } from "@/i18n/server";
+import { prisma } from "../db";
 import { formatRmb } from "../money";
 import { logApiError } from "../server-log";
+import { siteUrl } from "../site";
 import { getMailer } from "./index";
 import { mailDocument, paragraph } from "./template";
 import type { OutboundMail } from "./types";
@@ -63,6 +65,59 @@ export function emailChangeCodeNotice(code: string, t: Dict): Notice {
   };
 }
 
+export function ticketReplyNotice(
+  input: { subject: string; excerpt: string; url: string },
+  t: Dict,
+): Notice {
+  const lines = [
+    fill(t.mail.ticketReplyBody, { subject: input.subject }),
+    input.excerpt,
+    fill(t.mail.ticketReplyLink, { url: input.url }),
+  ];
+  return {
+    subject: t.mail.ticketReplySubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.ticketReplyTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
+  };
+}
+
+export function adminNewTicketNotice(
+  input: { email: string; subject: string; category: string; url: string },
+  t: Dict,
+): Notice {
+  const lines = [
+    fill(t.mail.adminTicketBody, input),
+    fill(t.mail.adminTicketLink, { url: input.url }),
+  ];
+  return {
+    subject: t.mail.adminTicketSubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.adminTicketTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
+  };
+}
+
+export function adminPaidOrderNotice(
+  input: { orderNo: string; amount: string; email: string },
+  t: Dict,
+): Notice {
+  const lines = [fill(t.mail.adminPaidBody, input)];
+  return {
+    subject: t.mail.adminPaidSubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.adminPaidTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
+  };
+}
+
+async function adminNotifyTarget(kind: "paid" | "ticket") {
+  const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
+  if (!settings) return null;
+  const to = settings.adminNotifyEmail.trim();
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return null;
+  if (kind === "paid" && !settings.notifyPaidOrders) return null;
+  if (kind === "ticket" && !settings.notifyNewTickets) return null;
+  return to;
+}
+
 /** Notices must not fail the action that triggered them. */
 export async function deliverQuietly(mail: OutboundMail, route: string) {
   try {
@@ -108,4 +163,58 @@ export async function deliverOrderPaid(input: {
     },
     "mail:order-paid",
   );
+}
+
+export function mailExcerpt(body: string) {
+  return body.replace(/\s+/g, " ").trim().slice(0, 400);
+}
+
+/** A failed send is logged and swallowed. Callers keep the ticket or the payment. */
+export async function deliverTicketStaffReply(input: { to: string; subject: string; excerpt: string; ticketId: string }) {
+  const t = await getT();
+  await deliverQuietly(
+    {
+      to: input.to,
+      ...ticketReplyNotice(
+        { subject: input.subject, excerpt: input.excerpt, url: `${siteUrl()}/tickets/${input.ticketId}` },
+        t,
+      ),
+    },
+    "mail:ticket-reply",
+  );
+}
+
+export async function deliverAdminNewTicket(input: { email: string; subject: string; category: string; ticketId: string }) {
+  try {
+    const to = await adminNotifyTarget("ticket");
+    if (!to) return;
+    const t = await getT();
+    const category = t.ticket.categories[input.category as keyof typeof t.ticket.categories] || input.category;
+    await deliverQuietly(
+      {
+        to,
+        ...adminNewTicketNotice({ ...input, category, url: `${siteUrl()}/admin/tickets/${input.ticketId}` }, t),
+      },
+      "mail:admin-ticket",
+    );
+  } catch (error) {
+    logApiError({ requestId: randomUUID(), route: "mail:admin-ticket", status: 500, error });
+  }
+}
+
+export async function deliverAdminPaidOrder(input: { email: string; orderNo: string; totalCents: number }) {
+  try {
+    const to = await adminNotifyTarget("paid");
+    if (!to) return;
+    const t = await getT();
+    await deliverQuietly(
+      {
+        to,
+        ...adminPaidOrderNotice({ orderNo: input.orderNo, amount: formatRmb(input.totalCents), email: input.email }, t),
+      },
+      "mail:admin-paid",
+    );
+  } catch (error) {
+    logApiError({ requestId: randomUUID(), route: "mail:admin-paid", status: 500, error });
+  }
 }

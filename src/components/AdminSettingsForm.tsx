@@ -17,6 +17,9 @@ type Settings = {
   announcementEnabled: boolean;
   orderExpireMinutes: number;
   adminTotpRequired: boolean;
+  adminNotifyEmail: string;
+  notifyPaidOrders: boolean;
+  notifyNewTickets: boolean;
   qrImageUrl: string;
   hasContactQr: boolean;
 };
@@ -55,6 +58,10 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
           setError(t.auth.emailInvalid);
           return;
         }
+        if (form.adminNotifyEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.adminNotifyEmail.trim())) {
+          setError(t.auth.emailInvalid);
+          return;
+        }
         const minutes = Number(form.orderExpireMinutes);
         if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
           setError(t.admin.invalidSettings);
@@ -77,6 +84,9 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
               announcementEnabled: form.announcementEnabled,
               orderExpireMinutes: minutes,
               adminTotpRequired: form.adminTotpRequired,
+              adminNotifyEmail: form.adminNotifyEmail.trim(),
+              notifyPaidOrders: form.notifyPaidOrders,
+              notifyNewTickets: form.notifyNewTickets,
               ...(clearQr ? { clearQr: true } : {}),
               ...(form.qrImageUrl && !clearQr ? { qrImageUrl: form.qrImageUrl } : {}),
             }),
@@ -124,6 +134,33 @@ export function AdminSettingsForm({ initial }: { initial: Settings }) {
           {key === "contactEmail" && <p className="muted" style={{ margin: "0.35rem 0 0" }}>{t.admin.contactEmailHint}</p>}
         </div>
       ))}
+      <div>
+        <label className="label" htmlFor="setting-notify">{t.admin.adminNotifyEmail}</label>
+        <input
+          id="setting-notify"
+          className="input"
+          type="email"
+          value={form.adminNotifyEmail}
+          onChange={(event) => setField("adminNotifyEmail", event.target.value)}
+        />
+        <p className="muted" style={{ margin: "0.35rem 0 0" }}>{t.admin.notifyHint}</p>
+        <label className="row" style={{ marginTop: "0.55rem" }}>
+          <input
+            type="checkbox"
+            checked={form.notifyPaidOrders}
+            onChange={(event) => setField("notifyPaidOrders", event.target.checked)}
+          />
+          {t.admin.notifyPaidOrders}
+        </label>
+        <label className="row" style={{ marginTop: "0.35rem" }}>
+          <input
+            type="checkbox"
+            checked={form.notifyNewTickets}
+            onChange={(event) => setField("notifyNewTickets", event.target.checked)}
+          />
+          {t.admin.notifyNewTickets}
+        </label>
+      </div>
       <div>
         <label className="label" htmlFor="setting-minutes">{t.admin.orderExpireMinutes}</label>
         <input

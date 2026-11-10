@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
+import { recordCheckout } from "@/lib/analytics";
 import { couponErrorMessage, isCouponError } from "@/lib/coupons";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
     const order = await createOrderFromItems(session.userId, items, { couponCode });
     session.cart = [];
     await session.save();
+    await recordCheckout(req.headers, order.id);
     return NextResponse.json({ order });
   } catch (e: unknown) {
     const code = e instanceof Error ? e.message : "";
