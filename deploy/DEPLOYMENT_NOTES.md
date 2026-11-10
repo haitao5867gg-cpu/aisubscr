@@ -56,4 +56,28 @@ systemctl restart aisubscr
 
 Until Cloudflare Email Sending is ready, set `MAIL_PROVIDER=console` in `/opt/aisubscr/.env`. Real email is not sent; the reset code is written to `journalctl -u aisubscr`. Do not set `MAIL_PROVIDER=smtp` until `SMTP_*` and `MAIL_FROM` are in place. An SMTP failure is logged and is not replaced by the console provider. New variables are listed in `.env.example`.
 
-Password-reset rate limits use `X-Real-IP`. Include `deploy/nginx-cloudflare-realip.conf` from the TLS server block so that address is the visitor, then `nginx -t && systemctl reload nginx`.
+Password-reset, login, and registration rate limits resolve the visitor the same way. nginx's `X-Real-IP` wins when it is already the visitor. When it is still a Cloudflare edge address, the app uses `CF-Connecting-IP`, then the rightmost non-proxy `X-Forwarded-For` hop. A client who connects to the origin cannot override `X-Real-IP` by sending `CF-Connecting-IP`. Include `deploy/nginx-cloudflare-realip.conf` from the TLS server block so `X-Real-IP` is the visitor even if `CF-Connecting-IP` is absent, then `nginx -t && systemctl reload nginx`.
+
+## Dependency audit (2026-11-10)
+
+Before: `npm audit` reported 8 (7 moderate, 1 high). `npm audit --omit=dev` reported 2 (Next moderate, via PostCSS, and PostCSS high). After this release both commands report 0.
+
+Next 15.5.29 has no patched release; the advisory's upstream fix is Next 16.4.6. `postcss` is overridden to 8.5.32, the patched 8.x line Next already uses. The dev-only minimatch advisory (`GHSA-g3hv-75wg-m249`, fixed in 11.0.1) sits under `@typescript-eslint/typescript-estree@8.72.2`, which declares `minimatch@^10.2.2`. `npm audit fix` will not cross that range. The override pins minimatch 11.0.5 for that package only. ESLint still runs.
+
+## Security headers and auth limits (2026-11-10)
+
+No nginx change is required for the headers. The app sets CSP, `X-Frame-Options`, `Referrer-Policy`, `X-Content-Type-Options`, and `Permissions-Policy`. HSTS (`max-age=63072000; includeSubDomains`) is added only when the request is HTTPS or `X-Forwarded-Proto` is `https`.
+
+Session cookie remains `aisubscr_session` with `HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` when `NODE_ENV=production`. Before restarting, confirm `SESSION_SECRET` in `/opt/aisubscr/.env` is unique and at least 32 characters. The process will not issue sessions if it is missing, shorter, the dev fallback, or the `.env.example` placeholder.
+
+On a database that already has the baseline migration recorded:
+
+```bash
+cd /opt/aisubscr
+/usr/local/sbin/aisubscr-backup
+npx prisma migrate deploy
+npm run build
+systemctl restart aisubscr
+```
+
+`migrate deploy` adds `AuthRateEvent` only. Do not run `db:seed` or `db:setup`.

@@ -17,13 +17,25 @@ export function PayPanel({ orderId }: { orderId: string }) {
       body: JSON.stringify({ method }),
     });
     const data = await res.json();
-    setBusy(false);
     if (!res.ok) {
+      setBusy(false);
       setError(data.error || "支付发起失败");
       return;
     }
-    // MOCK provider returns a local redirect URL
-    window.location.href = data.payment.redirectUrl;
+    const redirectUrl = typeof data.payment?.redirectUrl === "string" ? data.payment.redirectUrl : "";
+    // Same-origin MOCK completion is a POST so a cross-site navigation cannot pay the order.
+    if (redirectUrl.startsWith("/") && !redirectUrl.startsWith("//")) {
+      const done = await fetch(redirectUrl, { method: "POST" });
+      const payload = await done.json().catch(() => ({}));
+      if (!done.ok) {
+        setBusy(false);
+        setError(payload.error || "支付发起失败");
+        return;
+      }
+      window.location.href = typeof payload.redirect === "string" ? payload.redirect : `/orders/${orderId}?paid=1`;
+      return;
+    }
+    window.location.href = redirectUrl;
   }
 
   return (

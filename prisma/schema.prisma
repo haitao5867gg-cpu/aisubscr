@@ -42,6 +42,17 @@ model PasswordResetSend {
   @@index([bucket, createdAt])
 }
 
+/// Login failures and registration attempts, keyed by email or IP.
+/// `action` is "login" or "register". `bucket` is "email:…" or "ip:…".
+model AuthRateEvent {
+  id        String   @id @default(cuid())
+  action    String
+  bucket    String
+  createdAt DateTime @default(now())
+
+  @@index([action, bucket, createdAt])
+}
+
 model Product {
   id              String   @id @default(cuid())
   name            String

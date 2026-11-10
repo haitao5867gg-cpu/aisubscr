@@ -46,7 +46,7 @@ npm run dev            # http://0.0.0.0:3000
 ## 目录结构（简要）
 
 ```
-prisma/          schema、baseline 迁移、密码重置迁移、seed
+prisma/          schema、baseline 迁移、密码重置迁移、登录/注册限流迁移、seed
 deploy/          已脱敏的生产笔记、nginx / systemd、备份脚本
 src/app/         App Router 页面与 API
 src/components/  UI 组件
@@ -72,7 +72,36 @@ src/app/globals.css  主题 CSS 变量（便于后续换肤）
 4. 成功后删除验证码，并把 `User.sessionVersion` 加 1。iron-session 的登录态在 Cookie 里，其他设备上的旧 Cookie 在下次请求时因版本不一致而视为已退出。
 5. 邮件发送失败（SMTP 错误或配置不完整）时返回「发送失败，请稍后再试」。页面停在发送步骤并显示该错误，不会进入已发送状态。未发出的验证码记录会被删掉。
 
-同一邮箱、同一 IP 发送间隔约 60 秒，并且每小时最多约 5 次。超过限制时返回「发送过于频繁，请稍后再试」，这条响应不说明邮箱是否注册。IP 取 nginx 写入的 `X-Real-IP`。站点在 Cloudflare 后面时，把 `deploy/nginx-cloudflare-realip.conf` 包含进 TLS 的 server 块，`$remote_addr` 才会是访客地址；否则多个访客会共享同一个 Cloudflare 出口地址。
+同一邮箱、同一 IP 发送间隔约 60 秒，并且每小时最多约 5 次。超过限制时返回「发送过于频繁，请稍后再试」，这条响应不说明邮箱是否注册。IP 的取法见下面「访客 IP」。站点在 Cloudflare 后面时，仍建议把 `deploy/nginx-cloudflare-realip.conf` 包含进 TLS 的 server 块，这样 `X-Real-IP` 就是访客地址。
+
+## 登录与注册频率限制
+
+限制存在 SQLite（`AuthRateEvent`），重启后仍然有效。登录和注册分开计数。
+
+| 动作 | 邮箱 | IP |
+|------|------|----|
+| 登录失败 | 15 分钟最多 5 次 | 15 分钟最多 20 次 |
+| 注册 | 约 60 秒 1 次，并且每小时最多 5 次 | 与邮箱相同 |
+
+登录只记录失败。密码正确不受这次限制，输错一次也可以马上再试，直到达到上面的次数。未注册的邮箱同样计次，避免用「是否被限制」判断邮箱是否存在。超过后返回「尝试次数过多，请稍后再试」（HTTP 429，带 `Retry-After`）。
+
+注册每次请求都计数（包括该邮箱已经注册）。超过后返回「注册过于频繁，请稍后再试」，这条响应不说明邮箱是否注册。
+
+## 访客 IP
+
+应用只信任本机 nginx 转发过来的地址：
+
+1. `X-Real-IP` 已是访客地址时用它。直连源站时，伪造的 `CF-Connecting-IP` 不能覆盖它。
+2. `X-Real-IP` 是 Cloudflare 边缘地址时，用 `CF-Connecting-IP`。
+3. 否则从 `X-Forwarded-For` 的右侧取第一个不是代理的地址。客户端写在左侧的值不采用。
+
+## 安全响应头与会话
+
+页面响应带 Content-Security-Policy（脚本按请求 nonce，样式保留 `'unsafe-inline'`，因为页面使用 React 的 `style` 属性）、`X-Frame-Options: DENY`、`frame-ancestors 'none'`、`Referrer-Policy`、`X-Content-Type-Options: nosniff`、`Permissions-Policy`。请求是 HTTPS（或 `X-Forwarded-Proto: https`）时再加 HSTS。本地 HTTP 开发不会升级到 HTTPS。
+
+会话 Cookie 名 `aisubscr_session`：`HttpOnly`、`SameSite=Lax`、`Path=/`，生产环境 `Secure`。生产环境的 `SESSION_SECRET` 必须至少 32 位，且不能是 `.env.example` 里的占位符或代码里的开发回退值，否则进程拒绝签发会话。
+
+管理页面在服务端布局里检查登录和 `ADMIN`。管理 API 同样在处理数据前调用 `requireAdmin()`。角色每次从数据库读取，不单独信任 Cookie 里的旧角色。未登录返回 401，已登录但不是管理员返回 403。模拟支付完成改为仅订单本人可 POST，避免别人凭订单号把订单标成已支付。
 
 ## 环境变量
 
@@ -91,10 +120,11 @@ Cloudflare Email Sending 尚未开通时保持 `MAIL_PROVIDER=console`。真实�
 
 ## 生产数据库升级
 
-当前生产库由 `prisma db push` 建成，里面有真实数据，且仓库原先没有迁移历史。本次加入两条迁移：
+当前生产库由 `prisma db push` 建成，里面有真实数据，且仓库原先没有迁移历史。迁移：
 
 - `20261109120000_baseline`：升级前的表结构
 - `20261109120500_password_reset`：给 `User` 增加 `sessionVersion`（`ALTER TABLE`，默认 0），并新建验证码表。不重建用户表，不删除已有行
+- `20261110120000_auth_rate_events`：新建 `AuthRateEvent`，供登录失败和注册频率限制。不改已有表
 
 **不要**在生产运行 `npm run db:seed`、`npm run db:setup` 或 `npx prisma db seed`。seed 会重置管理员密码。
 

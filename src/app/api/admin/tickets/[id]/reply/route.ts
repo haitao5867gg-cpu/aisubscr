@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/session";
+import { adminAuthResponse, requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/db";
 
 const schema = z.object({ body: z.string().min(1) });
@@ -9,8 +9,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let session;
   try {
     session = await requireAdmin();
-  } catch {
-    return NextResponse.json({ error: "无权限" }, { status: 403 });
+  } catch (error) {
+    const denied = adminAuthResponse(error);
+    if (denied) return denied;
+    throw error;
   }
   const { id } = await params;
   const ticket = await prisma.ticket.findUnique({ where: { id } });

@@ -56,6 +56,8 @@ export const zh = {
     backToLogin: "返回登录",
     invalidCode: "验证码无效或已过期",
     rateLimited: "发送过于频繁，请稍后再试",
+    loginRateLimited: "尝试次数过多，请稍后再试",
+    registerRateLimited: "注册过于频繁，请稍后再试",
     passwordRequired: "请输入新密码",
     emailInvalid: "请输入有效的邮箱",
   },
