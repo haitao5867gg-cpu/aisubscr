@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { Dict } from "@/i18n";
 import { getT } from "@/i18n/server";
+import { crossedLowStock } from "../admin-stats";
 import { prisma } from "../db";
 import { formatRmb } from "../money";
 import { logApiError } from "../server-log";
@@ -96,15 +97,42 @@ export function adminNewTicketNotice(
   };
 }
 
+export type LowStockLine = { name: string; stock: number; threshold: number };
+
+function lowStockLines(items: LowStockLine[], t: Dict) {
+  if (!items.length) return [];
+  return [
+    t.mail.adminLowStockLead,
+    ...items.map((item) =>
+      fill(t.mail.adminLowStockItem, {
+        name: item.name,
+        stock: String(item.stock),
+        threshold: String(item.threshold),
+      }),
+    ),
+  ];
+}
+
 export function adminPaidOrderNotice(
   input: { orderNo: string; amount: string; email: string },
   t: Dict,
+  lowStock: LowStockLine[] = [],
 ): Notice {
-  const lines = [fill(t.mail.adminPaidBody, input)];
+  const lines = [fill(t.mail.adminPaidBody, input), ...lowStockLines(lowStock, t)];
   return {
     subject: t.mail.adminPaidSubject,
     text: lines.join("\n"),
     html: mailDocument(t.mail.adminPaidTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
+  };
+}
+
+/** Sent when paid-order mail is off and the low-stock toggle is still on. */
+export function adminLowStockNotice(input: { orderNo: string; items: LowStockLine[] }, t: Dict): Notice {
+  const lines = [fill(t.mail.adminLowStockBody, { orderNo: input.orderNo }), ...lowStockLines(input.items, t)];
+  return {
+    subject: t.mail.adminLowStockSubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.adminLowStockTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
   };
 }
 
@@ -202,18 +230,58 @@ export async function deliverAdminNewTicket(input: { email: string; subject: str
   }
 }
 
-export async function deliverAdminPaidOrder(input: { email: string; orderNo: string; totalCents: number }) {
+/** Products on this order whose reserved stock crossed the per-product threshold. */
+export async function lowStockAfterPayment(orderId: string): Promise<LowStockLine[]> {
+  const items = await prisma.orderItem.findMany({
+    where: { orderId },
+    select: {
+      quantity: true,
+      product: { select: { name: true, stock: true, lowStockThreshold: true } },
+    },
+  });
+  const lines: LowStockLine[] = [];
+  for (const item of items) {
+    if (
+      !crossedLowStock({
+        stock: item.product.stock,
+        quantity: item.quantity,
+        threshold: item.product.lowStockThreshold,
+      }) ||
+      item.product.stock === null
+    ) {
+      continue;
+    }
+    lines.push({
+      name: item.product.name,
+      stock: item.product.stock,
+      threshold: item.product.lowStockThreshold,
+    });
+  }
+  return lines;
+}
+
+export async function deliverAdminPaidOrder(input: {
+  email: string;
+  orderNo: string;
+  totalCents: number;
+  lowStock?: LowStockLine[];
+}) {
   try {
-    const to = await adminNotifyTarget("paid");
-    if (!to) return;
+    const settings = await prisma.siteSetting.findUnique({ where: { id: "default" } });
+    if (!settings) return;
+    const to = settings.adminNotifyEmail.trim();
+    if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return;
+    const lowStock = settings.notifyLowStock ? (input.lowStock ?? []) : [];
+    if (!settings.notifyPaidOrders && lowStock.length === 0) return;
     const t = await getT();
-    await deliverQuietly(
-      {
-        to,
-        ...adminPaidOrderNotice({ orderNo: input.orderNo, amount: formatRmb(input.totalCents), email: input.email }, t),
-      },
-      "mail:admin-paid",
-    );
+    const notice = settings.notifyPaidOrders
+      ? adminPaidOrderNotice(
+          { orderNo: input.orderNo, amount: formatRmb(input.totalCents), email: input.email },
+          t,
+          lowStock,
+        )
+      : adminLowStockNotice({ orderNo: input.orderNo, items: lowStock }, t);
+    await deliverQuietly({ to, ...notice }, settings.notifyPaidOrders ? "mail:admin-paid" : "mail:admin-low-stock");
   } catch (error) {
     logApiError({ requestId: randomUUID(), route: "mail:admin-paid", status: 500, error });
   }

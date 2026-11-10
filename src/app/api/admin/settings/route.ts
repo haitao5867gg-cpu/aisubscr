@@ -24,6 +24,7 @@ const schema = z.object({
   adminNotifyEmail: z.string().trim().max(120).optional(),
   notifyPaidOrders: z.boolean().optional(),
   notifyNewTickets: z.boolean().optional(),
+  notifyLowStock: z.boolean().optional(),
   qrImageUrl: z.string().trim().min(1).max(500).optional(),
   qrImageMime: z.enum(["image/png", "image/jpeg", "image/webp"]).nullable().optional(),
   qrImageBase64: z.string().max(800_000).nullable().optional(),
@@ -80,6 +81,7 @@ export async function PATCH(req: NextRequest) {
     adminNotifyEmail?: string;
     notifyPaidOrders?: boolean;
     notifyNewTickets?: boolean;
+    notifyLowStock?: boolean;
     qrImageUrl?: string | null;
     qrImageMime?: string | null;
     qrImageData?: string | null;
@@ -99,6 +101,7 @@ export async function PATCH(req: NextRequest) {
     "adminNotifyEmail",
     "notifyPaidOrders",
     "notifyNewTickets",
+    "notifyLowStock",
   ] as const;
   for (const key of fields) {
     const value = parsed.data[key];

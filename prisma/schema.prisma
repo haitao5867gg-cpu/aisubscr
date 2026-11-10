@@ -90,6 +90,8 @@ model Product {
   active          Boolean  @default(true)
   /// Null means stock is not tracked. Zero means it cannot be purchased.
   stock           Int?
+  /// Warn when tracked stock is at or below this number. Unlimited stock never warns.
+  lowStockThreshold Int    @default(5)
   sortOrder       Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -257,6 +259,8 @@ model SiteSetting {
   adminNotifyEmail     String   @default("")
   notifyPaidOrders     Boolean  @default(true)
   notifyNewTickets     Boolean  @default(true)
+  /// When a paid order crosses a product's low-stock threshold, mention it on the admin notice.
+  notifyLowStock       Boolean  @default(true)
   updatedAt            DateTime @updatedAt
 }
 
