@@ -1,3 +1,5 @@
+import { en, zh } from "@/i18n";
+import { getT } from "@/i18n/server";
 import { consoleMailer } from "./console";
 import { createSmtpMailer, MailConfigError } from "./smtp";
 import type { Mailer, MailProviderName } from "./types";
@@ -24,17 +26,22 @@ export function getMailer(): Mailer {
   return createSmtpMailer();
 }
 
+function fill(template: string, code: string) {
+  return template.replaceAll("{code}", code);
+}
+
 export async function sendPasswordResetEmail(to: string, code: string): Promise<void> {
   const mailer = getMailer();
+  const t = await getT();
   await mailer.send({
     to,
-    subject: "aisubscr 密码重置验证码",
+    subject: t.mail.resetSubject,
     text: [
-      `您的验证码是 ${code}`,
-      "验证码 15 分钟内有效。如非本人操作，请忽略这封邮件。",
+      fill(zh.mail.resetCode, code),
+      zh.mail.resetExpire,
       "",
-      `Your verification code is ${code}`,
-      "It expires in 15 minutes. If you did not request a password reset, ignore this email.",
+      fill(en.mail.resetCodeEn, code),
+      en.mail.resetExpireEn,
     ].join("\n"),
   });
   if (mailer.name === "smtp") {

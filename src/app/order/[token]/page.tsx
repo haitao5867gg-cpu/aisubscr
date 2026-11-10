@@ -11,6 +11,9 @@ import { SupportFab } from "@/components/SupportFab";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { OrderCountdown } from "@/components/OrderCountdown";
+import { expireDueOrders } from "@/lib/order-expiry";
 import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 export default async function PublicOrderPage({ params }: { params: Promise<{ token: string }> }) {
   const zh = getDict(await getLocale());
   const { token } = await params;
+  await expireDueOrders();
   const order = await prisma.order.findFirst({
     where: { publicToken: token },
     include: {
@@ -46,6 +50,7 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
         {zh.common.skipToContent}
       </a>
       <Header />
+      <AnnouncementBanner />
       <main id="main" className="container main-pad" style={{ paddingTop: "1.75rem", minHeight: "70vh" }}>
         <div className="stack">
           <div>
@@ -62,6 +67,9 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
               orderNo={order.orderNo}
               status={order.status}
               totalCents={order.totalCents}
+              subtotalCents={order.subtotalCents}
+              discountCents={order.discountCents}
+              couponCode={order.couponCode}
               paymentMethod={order.paymentMethod}
               paymentProvider={order.paymentProvider}
               isRenewal={order.isRenewal}
@@ -69,6 +77,9 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
               items={order.items}
             />
             <div className="detail-main stack">
+              {(order.status === "PENDING" || order.status === "PAYING") && order.expiresAt && (
+                <OrderCountdown expiresAt={order.expiresAt.toISOString()} />
+              )}
               <OrderTimeline status={order.status} />
               <section className="card stack" style={{ padding: "1.2rem" }}>
                 <h2 style={{ margin: 0, fontSize: "1.1rem" }}>{zh.shop.supportCard}</h2>

@@ -5,6 +5,7 @@ import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import { deliverOrderPaid } from "@/lib/mail/notices";
+import { releaseUnpaidHold, UNPAID_STATUSES } from "@/lib/order-expiry";
 import { canAdminSet, ORDER_STATUSES } from "@/lib/payments/states";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 
@@ -33,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     session = await requireAdmin();
   } catch (error) {
-    const denied = adminAuthResponse(error);
+    const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }
@@ -58,19 +59,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const newlyPaid = settling && !current.paidAt;
   if (newlyPaid) data.paidAt = new Date();
   const actor = actorFrom(session);
-  const order = await prisma.$transaction(async (tx) => {
-    const updated = await tx.order.update({ where: { id }, data });
-    await writeAudit(tx, {
-      ...actor,
-      action: "order.status",
-      targetType: "order",
-      targetId: id,
-      note: parsed.data.note,
-      before: orderSnapshot(current),
-      after: orderSnapshot(updated),
+  const closingUnpaid =
+    (parsed.data.status === "CANCELLED" || parsed.data.status === "EXPIRED") &&
+    (UNPAID_STATUSES as readonly string[]).includes(current.status);
+  let order;
+  try {
+    order = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: { id, status: current.status },
+        data,
+      });
+      if (updated.count !== 1) throw new Error("CONFLICT");
+      if (closingUnpaid) await releaseUnpaidHold(tx, id);
+      const fresh = await tx.order.findUniqueOrThrow({ where: { id } });
+      await writeAudit(tx, {
+        ...actor,
+        action: "order.status",
+        targetType: "order",
+        targetId: id,
+        note: parsed.data.note,
+        before: orderSnapshot(current),
+        after: orderSnapshot(fresh),
+      });
+      return fresh;
     });
-    return updated;
-  });
+  } catch (error) {
+    if (error instanceof Error && error.message === "CONFLICT") {
+      return NextResponse.json({ error: t.admin.invalidTransition }, { status: 409 });
+    }
+    throw error;
+  }
   if (newlyPaid) {
     await deliverOrderPaid({
       to: current.user.email,

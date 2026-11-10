@@ -12,6 +12,8 @@ import { OrderTimeline } from "@/components/OrderTimeline";
 import { OrderSummary } from "@/components/OrderSummary";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
+import { OrderCountdown } from "@/components/OrderCountdown";
+import { expireDueOrders } from "@/lib/order-expiry";
 import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +36,7 @@ export default async function OrderDetailPage({
   const sp = await searchParams;
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect("/login");
+  await expireDueOrders();
   const order = await prisma.order.findFirst({
     where: { id, userId: session.userId },
     include: { items: true, tickets: true },
@@ -54,13 +57,19 @@ export default async function OrderDetailPage({
         </div>
         <StatusBadge status={order.status} />
       </div>
-      {sp.paid === "1" && <div className="alert alert-mock" role="status">{zh.payment.success}</div>}
+          {sp.paid === "1" && <div className="alert alert-mock" role="status">{zh.payment.success}</div>}
+      {(order.status === "PENDING" || order.status === "PAYING") && order.expiresAt && (
+        <OrderCountdown expiresAt={order.expiresAt.toISOString()} />
+      )}
 
       <div className="detail-grid">
         <OrderSummary
           orderNo={order.orderNo}
           status={order.status}
           totalCents={order.totalCents}
+          subtotalCents={order.subtotalCents}
+          discountCents={order.discountCents}
+          couponCode={order.couponCode}
           paymentMethod={order.paymentMethod}
           paymentProvider={order.paymentProvider}
           isRenewal={order.isRenewal}
@@ -77,7 +86,7 @@ export default async function OrderDetailPage({
               {shareUrl}
             </Link>
           </div>
-          {order.status === "PENDING" && <PayPanel orderId={order.id} />}
+          {(order.status === "PENDING" || order.status === "PAYING") && <PayPanel orderId={order.id} />}
           <div className="row">
             {canRenew && <RenewButton orderId={order.id} />}
             <Link href="/orders" className="btn btn-secondary">

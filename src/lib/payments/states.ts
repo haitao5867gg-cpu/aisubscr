@@ -7,19 +7,21 @@ export const ORDER_STATUSES = [
   "REFUNDED",
   "CANCELLED",
   "FAILED",
+  "EXPIRED",
 ] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 const transitions: Record<OrderStatus, readonly OrderStatus[]> = {
-  PENDING: ["PAYING", "PAID", "CANCELLED", "FAILED"],
-  PAYING: ["PAID", "FAILED", "CANCELLED", "PENDING"],
+  PENDING: ["PAYING", "PAID", "CANCELLED", "FAILED", "EXPIRED"],
+  PAYING: ["PAID", "FAILED", "CANCELLED", "PENDING", "EXPIRED"],
   PAID: ["COMPLETED", "REFUNDING", "REFUNDED"],
   COMPLETED: ["REFUNDING", "REFUNDED"],
   REFUNDING: ["REFUNDED", "COMPLETED"],
   REFUNDED: [],
   CANCELLED: [],
   FAILED: ["PENDING", "PAYING"],
+  EXPIRED: [],
 };
 
 export function isOrderStatus(value: string): value is OrderStatus {

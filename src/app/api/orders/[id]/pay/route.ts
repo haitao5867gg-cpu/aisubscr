@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { prisma } from "@/lib/db";
+import { expireOrderIfDue } from "@/lib/order-expiry";
 import { getPaymentProvider, PaymentProviderNotReadyError, type PaymentMethod } from "@/lib/payments";
 import { getSession } from "@/lib/session";
 import { siteUrl } from "@/lib/site";
@@ -20,6 +21,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const order = await prisma.order.findFirst({ where: { id, userId: session.userId } });
   if (!order) return NextResponse.json({ error: t.shop.productMissing }, { status: 404 });
+  if (order.expiresAt && order.expiresAt <= new Date() && (order.status === "PENDING" || order.status === "PAYING")) {
+    await prisma.$transaction((tx) => expireOrderIfDue(tx, order));
+    return NextResponse.json({ error: t.order.expiredPay }, { status: 400 });
+  }
   if (order.status !== "PENDING" && order.status !== "PAYING") {
     return NextResponse.json({ error: t.payment.payFailed }, { status: 400 });
   }

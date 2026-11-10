@@ -152,6 +152,11 @@ export default async function HomePage() {
 
       <section className="shop-section">
         <h2 className="section-kicker">{zh.shop.faqTitle}</h2>
+        <p style={{ marginTop: 0 }}>
+          <Link href="/help" className="text-link">
+            {zh.shop.moreHelp}
+          </Link>
+        </p>
         <div>
           {faqs.map(([question, answer]) => (
             <details key={question} className="faq-item">

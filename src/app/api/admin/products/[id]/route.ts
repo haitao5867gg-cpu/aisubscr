@@ -13,7 +13,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     session = await requireAdmin();
   } catch (error) {
-    const denied = adminAuthResponse(error);
+    const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }
@@ -44,7 +44,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   try {
     session = await requireAdmin();
   } catch (error) {
-    const denied = adminAuthResponse(error);
+    const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }

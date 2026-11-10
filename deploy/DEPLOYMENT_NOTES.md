@@ -85,3 +85,9 @@ systemctl restart aisubscr
 ## Payment notices (2026-11-10)
 
 `npx prisma migrate deploy` also applies `20261110143000_payment_notices`, which creates `PaymentNotice` only. Checkout stays on the mock provider. Leave `PAYMENT_PROVIDER=mock`. The `WECHAT_PAY_*` and `ALIPAY_*` placeholders in `.env.example` stay empty. Do not commit merchant secrets. HTML responses stay `private, no-store` because of the CSP nonce; `/_next/static` keeps a one-year immutable cache for Cloudflare.
+
+## Coupons, unpaid-order expiry, and support pages (2026-11-10)
+
+`npx prisma migrate deploy` applies `20261110210000_coupons_support_expiry`. It adds coupon tables, FAQ rows, contact and announcement columns, and order discount / expiry columns. It does not insert promo codes, FAQ text, or legal copy. Do not run `db:seed` or `db:setup`.
+
+Unpaid orders expire after 30 minutes unless admin settings or `ORDER_EXPIRE_MINUTES` say otherwise. Install the cron from `deploy/CRON.md`. A visit to an order page also expires due orders, so the cron is the backstop. Promo-code uses are counted inside the order transaction and returned if the order expires or is cancelled before payment.

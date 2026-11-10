@@ -1,4 +1,7 @@
+import { writeAudit } from "./audit";
+import { reserveCoupon } from "./coupons";
 import { prisma } from "./db";
+import { orderExpiresAt, resolveExpireMinutes } from "./order-expiry";
 
 export function generateOrderNo() {
   const now = new Date();
@@ -13,7 +16,7 @@ export function generateOrderNo() {
 export async function createOrderFromItems(
   userId: string,
   items: { productId: string; quantity: number }[],
-  opts?: { isRenewal?: boolean; parentOrderId?: string }
+  opts?: { isRenewal?: boolean; parentOrderId?: string; couponCode?: string | null },
 ) {
   if (!items.length) throw new Error("EMPTY_CART");
 
@@ -23,6 +26,7 @@ export async function createOrderFromItems(
     merged.set(item.productId, (merged.get(item.productId) ?? 0) + qty);
   }
   const ids = [...merged.keys()];
+  const couponCode = opts?.couponCode?.trim() ?? "";
 
   return prisma.$transaction(async (tx) => {
     const products = await tx.product.findMany({
@@ -31,12 +35,12 @@ export async function createOrderFromItems(
     if (products.length !== ids.length) throw new Error("PRODUCT_NOT_FOUND");
 
     const productMap = new Map(products.map((product) => [product.id, product]));
-    let totalCents = 0;
+    let subtotalCents = 0;
     const orderItems = ids.map((id) => {
       const product = productMap.get(id)!;
       const quantity = merged.get(id)!;
       if (product.stock !== null && product.stock < quantity) throw new Error("OUT_OF_STOCK");
-      totalCents += product.priceCents * quantity;
+      subtotalCents += product.priceCents * quantity;
       return {
         productId: product.id,
         productName: product.name,
@@ -56,11 +60,26 @@ export async function createOrderFromItems(
       if (updated.count !== 1) throw new Error("OUT_OF_STOCK");
     }
 
-    return tx.order.create({
+    const reserved = couponCode
+      ? await reserveCoupon(tx, { code: couponCode, userId, subtotalCents })
+      : null;
+    const discountCents = reserved?.discountCents ?? 0;
+    const settings = await tx.siteSetting.findUnique({
+      where: { id: "default" },
+      select: { orderExpireMinutes: true },
+    });
+    const expiresAt = orderExpiresAt(resolveExpireMinutes(settings?.orderExpireMinutes));
+
+    const order = await tx.order.create({
       data: {
         orderNo: generateOrderNo(),
         userId,
-        totalCents,
+        subtotalCents,
+        discountCents,
+        totalCents: subtotalCents - discountCents,
+        couponCode: reserved?.code ?? null,
+        couponId: reserved?.couponId ?? null,
+        expiresAt,
         status: "PENDING",
         isRenewal: opts?.isRenewal ?? false,
         parentOrderId: opts?.parentOrderId,
@@ -68,5 +87,30 @@ export async function createOrderFromItems(
       },
       include: { items: true },
     });
+
+    if (reserved) {
+      await tx.couponRedemption.create({
+        data: {
+          couponId: reserved.couponId,
+          orderId: order.id,
+          userId,
+          discountCents,
+        },
+      });
+      const actor = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (actor) {
+        await writeAudit(tx, {
+          actorId: userId,
+          actorEmail: actor.email,
+          action: "coupon.redeem",
+          targetType: "coupon",
+          targetId: reserved.couponId,
+          note: order.orderNo,
+          after: { code: reserved.code, discountCents, orderId: order.id },
+        });
+      }
+    }
+
+    return order;
   });
 }

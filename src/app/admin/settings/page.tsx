@@ -19,6 +19,13 @@ export default async function AdminSettingsPage() {
           supportEmail: settings.supportEmail,
           supportHours: settings.supportHours,
           footerText: settings.footerText,
+          wechatId: settings.wechatId,
+          qq: settings.qq,
+          contactEmail: settings.contactEmail,
+          announcementText: settings.announcementText,
+          announcementEnabled: settings.announcementEnabled,
+          orderExpireMinutes: settings.orderExpireMinutes,
+          hasContactQr: Boolean(settings.qrImageData && settings.qrImageMime),
         }}
       />
     </div>

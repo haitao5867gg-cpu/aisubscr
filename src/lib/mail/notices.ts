@@ -1,76 +1,65 @@
 import { randomUUID } from "crypto";
+import type { Dict } from "@/i18n";
+import { getT } from "@/i18n/server";
 import { formatRmb } from "../money";
 import { logApiError } from "../server-log";
 import { getMailer } from "./index";
 import { mailDocument, paragraph } from "./template";
 import type { OutboundMail } from "./types";
 
+function fill(template: string, values: Record<string, string>) {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
+}
+
 type Notice = Omit<OutboundMail, "to">;
 
-export function orderPaidNotice(input: {
-  orderNo: string;
-  totalCents: number;
-  items: { productName: string; quantity: number }[];
-}): Notice {
+export function orderPaidNotice(
+  input: {
+    orderNo: string;
+    totalCents: number;
+    items: { productName: string; quantity: number }[];
+  },
+  t: Dict,
+): Notice {
   const amount = formatRmb(input.totalCents);
   const items = input.items.map((item) => `${item.productName} × ${item.quantity}`).join("、");
-  const text = [
-    `订单 ${input.orderNo} 已支付。`,
-    `金额：${amount}`,
-    `商品：${items}`,
-    "可在个人中心查看订单。这封邮件只确认付款，不包含任何账号或卡密。",
-  ].join("\n");
+  const lines = [
+    fill(t.mail.paidBody, { orderNo: input.orderNo }),
+    fill(t.mail.paidAmount, { amount }),
+    fill(t.mail.paidItems, { items }),
+    t.mail.paidNote,
+  ];
   return {
-    subject: "aisubscr 订单已支付",
-    text,
-    html: mailDocument(
-      "订单已支付",
-      [
-        paragraph(`订单 ${input.orderNo} 已支付。`),
-        paragraph(`金额：${amount}`),
-        paragraph(`商品：${items}`),
-        paragraph("可在个人中心查看订单。这封邮件只确认付款，不包含任何账号或卡密。"),
-      ].join(""),
-    ),
+    subject: t.mail.paidSubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.paidTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
   };
 }
 
-export function passwordChangedNotice(): Notice {
-  const text = ["你的 aisubscr 密码刚刚被修改。", "如果不是你本人操作，请马上重置密码并联系客服。"].join("\n");
+export function passwordChangedNotice(t: Dict): Notice {
+  const lines = [t.mail.passwordBody, t.mail.passwordWarn];
   return {
-    subject: "aisubscr 密码已修改",
-    text,
-    html: mailDocument("密码已修改", [paragraph("你的 aisubscr 密码刚刚被修改。"), paragraph("如果不是你本人操作，请马上重置密码并联系客服。")].join("")),
+    subject: t.mail.passwordSubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.passwordTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
   };
 }
 
-export function emailChangedNotice(input: { oldEmail: string; newEmail: string }): Notice {
-  const text = [
-    `你的 aisubscr 登录邮箱已从 ${input.oldEmail} 改为 ${input.newEmail}。`,
-    "如果不是你本人操作，请马上联系客服。",
-  ].join("\n");
+export function emailChangedNotice(input: { oldEmail: string; newEmail: string }, t: Dict): Notice {
+  const lines = [fill(t.mail.emailBody, input), t.mail.emailWarn];
   return {
-    subject: "aisubscr 登录邮箱已更改",
-    text,
-    html: mailDocument(
-      "登录邮箱已更改",
-      [
-        paragraph(`你的 aisubscr 登录邮箱已从 ${input.oldEmail} 改为 ${input.newEmail}。`),
-        paragraph("如果不是你本人操作，请马上联系客服。"),
-      ].join(""),
-    ),
+    subject: t.mail.emailSubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.emailTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
   };
 }
 
-export function emailChangeCodeNotice(code: string): Notice {
-  const text = [`您的验证码是 ${code}`, "验证码 15 分钟内有效。如非本人操作，请忽略这封邮件。"].join("\n");
+export function emailChangeCodeNotice(code: string, t: Dict): Notice {
+  const lines = [fill(t.mail.resetCode, { code }), t.mail.resetExpire];
   return {
-    subject: "aisubscr 更换邮箱验证码",
-    text,
-    html: mailDocument(
-      "更换邮箱验证码",
-      [paragraph(`您的验证码是 ${code}`), paragraph("验证码 15 分钟内有效。如非本人操作，请忽略这封邮件。")].join(""),
-    ),
+    subject: t.mail.emailCodeSubject,
+    text: lines.join("\n"),
+    html: mailDocument(t.mail.emailCodeTitle, lines.map((line) => paragraph(line)).join(""), t.mail.footer),
   };
 }
 
@@ -93,12 +82,14 @@ export async function deliverQuietly(mail: OutboundMail, route: string) {
 }
 
 export async function deliverPasswordChanged(to: string) {
-  await deliverQuietly({ to, ...passwordChangedNotice() }, "mail:password-changed");
+  const t = await getT();
+  await deliverQuietly({ to, ...passwordChangedNotice(t) }, "mail:password-changed");
 }
 
 export async function deliverEmailChanged(oldEmail: string, newEmail: string) {
+  const t = await getT();
   await deliverQuietly(
-    { to: oldEmail, ...emailChangedNotice({ oldEmail, newEmail }) },
+    { to: oldEmail, ...emailChangedNotice({ oldEmail, newEmail }, t) },
     "mail:email-changed",
   );
 }
@@ -109,10 +100,11 @@ export async function deliverOrderPaid(input: {
   totalCents: number;
   items: { productName: string; quantity: number }[];
 }) {
+  const t = await getT();
   await deliverQuietly(
     {
       to: input.to,
-      ...orderPaidNotice(input),
+      ...orderPaidNotice(input, t),
     },
     "mail:order-paid",
   );

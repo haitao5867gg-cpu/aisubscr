@@ -11,7 +11,7 @@ export async function GET() {
   try {
     await requireAdmin();
   } catch (error) {
-    const denied = adminAuthResponse(error);
+    const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   try {
     session = await requireAdmin();
   } catch (error) {
-    const denied = adminAuthResponse(error);
+    const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { getDict } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { actorFrom, writeAudit } from "@/lib/audit";
 import { adminAuthResponse, requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/db";
@@ -11,15 +13,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     session = await requireAdmin();
   } catch (error) {
-    const denied = adminAuthResponse(error);
+    const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }
+  const t = getDict(await getLocale());
   const { id } = await params;
   const ticket = await prisma.ticket.findUnique({ where: { id } });
-  if (!ticket) return NextResponse.json({ error: "工单不存在" }, { status: 404 });
+  if (!ticket) return NextResponse.json({ error: t.api.ticketMissing }, { status: 404 });
   const parsed = schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "请填写回复" }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ error: t.api.replyRequired }, { status: 400 });
   const actor = actorFrom(session);
   const reply = await prisma.$transaction(async (tx) => {
     const created = await tx.ticketReply.create({

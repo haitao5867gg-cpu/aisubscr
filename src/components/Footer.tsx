@@ -51,8 +51,31 @@ export async function Footer() {
             <span className="muted" style={{ fontSize: "0.9rem" }}>
               {zh.support.hours}：{settings?.supportHours || "08:00–23:00"}
             </span>
+            <Link href="/help" className="muted">
+              {zh.footer.help}
+            </Link>
+            <Link href="/contact" className="muted">
+              {zh.footer.contact}
+            </Link>
           </div>
         </div>
+        <nav className="footer-links" aria-label={zh.footer.support}>
+          <Link href="/terms" className="muted">
+            {zh.footer.terms}
+          </Link>
+          <Link href="/privacy" className="muted">
+            {zh.footer.privacy}
+          </Link>
+          <Link href="/refund" className="muted">
+            {zh.footer.refund}
+          </Link>
+          <Link href="/help" className="muted">
+            {zh.footer.help}
+          </Link>
+          <Link href="/contact" className="muted">
+            {zh.footer.contact}
+          </Link>
+        </nav>
         <div className="row" style={{ justifyContent: "space-between", marginBottom: "0.75rem" }}>
           <span className="muted" style={{ fontSize: "0.85rem" }}>
             © {year} {siteName}

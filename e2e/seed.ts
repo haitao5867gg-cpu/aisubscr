@@ -29,6 +29,34 @@ async function main() {
     },
   });
 
+  await prisma.coupon.upsert({
+    where: { code: "SAVE10" },
+    update: { active: true, kind: "PERCENT", percentOff: 10, amountCents: null, minOrderCents: 0, maxUses: null, maxUsesPerUser: null },
+    create: { code: "SAVE10", kind: "PERCENT", percentOff: 10, active: true },
+  });
+
+  const faq = await prisma.faqEntry.findFirst({ where: { question: "支付会真实扣款吗？" } });
+  if (!faq) {
+    await prisma.faqEntry.create({
+      data: {
+        question: "支付会真实扣款吗？",
+        answer: "不会。当前是模拟支付，用来把下单流程走通。",
+        sortOrder: 0,
+        published: true,
+      },
+    });
+  }
+
+  await prisma.siteSetting.update({
+    where: { id: "default" },
+    data: {
+      announcementEnabled: true,
+      announcementText: "示例公告：支付为模拟，不会真实扣款。",
+      wechatId: "aisubscr-demo",
+      qq: "10000",
+    },
+  });
+
   const existing = await prisma.product.findFirst({ where: { name: "示例商品 A" } });
   if (!existing) {
     await prisma.product.create({

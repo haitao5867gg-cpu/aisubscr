@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   try {
     await requireAdmin();
   } catch (error) {
-    const denied = adminAuthResponse(error);
+    const denied = await adminAuthResponse(error);
     if (denied) return denied;
     throw error;
   }

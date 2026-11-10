@@ -1,4 +1,5 @@
 import { randomInt } from "crypto";
+import { getT } from "@/i18n/server";
 import { hashPassword, verifyPassword } from "./auth";
 import { prisma } from "./db";
 import { normalizeEmail } from "./email";
@@ -52,7 +53,7 @@ export async function requestEmailChange(input: {
   });
 
   try {
-    const notice = emailChangeCodeNotice(code);
+    const notice = emailChangeCodeNotice(code, await getT());
     await getMailer().send({ to: nextEmail, ...notice });
   } catch (error) {
     await prisma.emailChangeCode.deleteMany({ where: { userId: user.id } });

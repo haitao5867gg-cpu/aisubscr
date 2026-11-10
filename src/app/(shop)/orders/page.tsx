@@ -10,6 +10,7 @@ import { AccountFrame } from "@/components/AccountFrame";
 import { EmptyState } from "@/components/EmptyState";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
+import { expireDueOrders } from "@/lib/order-expiry";
 import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function OrdersPage() {
   const zh = getDict(await getLocale());
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect("/login?next=/orders");
+  await expireDueOrders();
   const orders = await prisma.order.findMany({
     where: { userId: session.userId },
     include: { items: true },
@@ -45,6 +47,7 @@ export default async function OrdersPage() {
               <span className="muted">
                 {order.items.map((item) => item.productName).join("、")}
                 {order.isRenewal ? ` · ${zh.shop.renewalTag}` : ""}
+                {order.discountCents > 0 && order.couponCode ? ` · ${order.couponCode}` : ""}
                 {renews ? ` · ${zh.shop.nextRenewal} ${formatDay(renews)}` : ""}
               </span>
               <span>{formatRmb(order.totalCents)}</span>

@@ -111,6 +111,52 @@ test("account security changes the password and keeps this session", async ({ pa
   await expect(page).toHaveURL(/\/account$/);
 });
 
+test("footer, help, policies, and contact are linked", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("示例公告")).toBeVisible();
+  await page.getByRole("link", { name: "服务条款" }).click();
+  await expect(page).toHaveURL(/\/terms$/);
+  await expect(page.getByRole("note")).toContainText("占位文本");
+  await page.goto("/privacy");
+  await expect(page.getByRole("heading", { name: "隐私政策" })).toBeVisible();
+  await page.goto("/refund");
+  await expect(page.getByRole("heading", { name: "退款政策" })).toBeVisible();
+  await page.goto("/help");
+  await expect(page.getByText("支付会真实扣款吗？")).toBeVisible();
+  await page.goto("/contact");
+  await expect(page.getByText("aisubscr-demo")).toBeVisible();
+  await expect(page.getByText("10000")).toBeVisible();
+});
+
+test("the language switch changes the home page copy", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "English" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Pick a plan");
+  await expect(page.getByRole("link", { name: "View plans" }).first()).toBeVisible();
+});
+
+test("a promo code discounts checkout and the unpaid order shows a countdown", async ({ page }) => {
+  const email = `coupon-${Date.now()}@example.com`;
+  await page.goto("/register");
+  await page.getByLabel("邮箱").fill(email);
+  await page.getByLabel("密码").fill("secret12");
+  await page.getByRole("button", { name: "注册账号" }).click();
+  await expect(page).toHaveURL(/\/account$/);
+
+  await page.goto("/");
+  await page.getByRole("link", { name: "选择此方案" }).click();
+  await page.getByRole("button", { name: "加入结算" }).click();
+  await expect(page).toHaveURL(/\/cart$/);
+  await page.getByLabel("优惠码").fill("SAVE10");
+  await page.getByRole("button", { name: "使用" }).click();
+  await expect(page.getByText("¥89.10")).toBeVisible();
+  await page.getByRole("button", { name: "提交订单" }).click();
+  await expect(page).toHaveURL(/\/orders\//);
+  await expect(page.getByText("SAVE10")).toBeVisible();
+  await expect(page.getByText("¥89.10")).toBeVisible();
+  await expect(page.getByText(/请在 \d{2}:\d{2} 内完成支付/)).toBeVisible();
+});
+
 test("admin dashboard is staff-only", async ({ page }) => {
   const email = `shopper-${Date.now()}@example.com`;
   await page.goto("/register");
@@ -119,6 +165,10 @@ test("admin dashboard is staff-only", async ({ page }) => {
   await page.getByRole("button", { name: "注册账号" }).click();
   await expect(page).toHaveURL(/\/account$/);
   await page.goto("/admin");
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto("/admin/coupons");
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto("/admin/faq");
   await expect(page).toHaveURL(/\/$/);
 
   await page.goto("/login?next=/admin");
@@ -129,4 +179,8 @@ test("admin dashboard is staff-only", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "今日", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "近 7 日订单", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "最近订单", exact: true })).toBeVisible();
+  await page.goto("/admin/coupons");
+  await expect(page.getByRole("heading", { name: "优惠码", exact: true })).toBeVisible();
+  await page.goto("/admin/faq");
+  await expect(page.getByRole("heading", { name: "帮助中心", exact: true })).toBeVisible();
 });

@@ -96,8 +96,7 @@ function csvCell(value: string | number | null | undefined) {
   return `"${guarded.replaceAll('"', '""')}"`;
 }
 
-export function ordersToCsv(orders: CsvOrder[]) {
-  const header = ["订单号", "邮箱", "状态", "金额（分）", "支付方式", "下单时间", "支付时间", "商品"];
+export function ordersToCsv(orders: CsvOrder[], header: string[]) {
   const lines = [header.map(csvCell).join(",")];
   for (const order of orders) {
     lines.push(
