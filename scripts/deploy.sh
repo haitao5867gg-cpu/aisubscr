@@ -12,13 +12,19 @@
 # prisma db push, or prisma migrate reset. It never deletes the shared uploads
 # directory or the database file.
 #
+# Root's umask is 0077. Without `umask 022` the new tree is mode 0700/0600.
+# After the build, the release is chowned to the service user so Next can
+# write .next/cache. Symlinks to shared data are not followed.
+#
 # See docs/DEPLOY.md.
 set -euo pipefail
+umask 022
 
 RELEASES_DIR="${RELEASES_DIR:-/opt/aisubscr-releases}"
 CURRENT_LINK="${CURRENT_LINK:-/opt/aisubscr-current}"
 SHARED_DIR="${SHARED_DIR:-/opt/aisubscr-shared}"
 SERVICE="${SERVICE:-aisubscr.service}"
+SERVICE_USER="${SERVICE_USER:-aisubscr}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/health}"
 ENV_FILE="${ENV_FILE:-$SHARED_DIR/.env}"
 DB_FILE="${DB_FILE:-$SHARED_DIR/production.db}"
@@ -56,8 +62,10 @@ die() {
 
 if [[ "${EUID}" -eq 0 ]]; then
   SYSTEMCTL=(systemctl)
+  CHOWN=(chown)
 else
   SYSTEMCTL=(sudo -n systemctl)
+  CHOWN=(sudo -n chown)
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -161,6 +169,21 @@ restore_release_env() {
   commit_written=0
 }
 
+# Give the service user the release tree so next start can create .next/cache.
+# -P does not walk symlinks: shared .env, the database, and uploads stay put.
+own_release() {
+  local dir="$1" real shared_real uploads_real
+  [[ -n "$dir" && -d "$dir" ]] || return 0
+  real="$(readlink -f -- "$dir")"
+  shared_real="$(readlink -f -- "$SHARED_DIR")"
+  uploads_real="$(readlink -f -- "$UPLOADS_DIR")"
+  if [[ "$real" == "$shared_real" || "$real" == "$shared_real"/* || "$real" == "$uploads_real" || "$real" == "$uploads_real"/* ]]; then
+    echo "deploy.sh: refusing to chown shared data at $dir" >&2
+    return 1
+  fi
+  "${CHOWN[@]}" -RP -- "${SERVICE_USER}:" "$real"
+}
+
 # Refuse to delete a shared data directory. Only a release folder qualifies,
 # and only when uploads and the database inside it are symlinks.
 safe_rm_release() {
@@ -184,13 +207,13 @@ safe_rm_release() {
 }
 
 rollback() {
-  local restart=0
+  local restart=0 do_switch=0
   if [[ "$service_stopped" -eq 1 && "$switched" -eq 0 ]]; then
     restart=1
   fi
   if [[ "$switched" -eq 1 ]]; then
     if [[ -n "$previous_target" ]]; then
-      switch_current "$previous_target" || echo "deploy.sh: could not restore $CURRENT_LINK" >&2
+      do_switch=1
       restart=1
     else
       echo "deploy.sh: no previous release; stopping $SERVICE" >&2
@@ -199,6 +222,12 @@ rollback() {
     switched=0
   fi
   restore_release_env || echo "deploy.sh: could not restore $RELEASE_ENV" >&2
+  if [[ "$restart" -eq 1 && -n "$previous_target" ]]; then
+    own_release "$previous_target" || echo "deploy.sh: could not chown $previous_target to $SERVICE_USER" >&2
+  fi
+  if [[ "$do_switch" -eq 1 ]]; then
+    switch_current "$previous_target" || echo "deploy.sh: could not restore $CURRENT_LINK" >&2
+  fi
   if [[ "$restart" -eq 1 ]]; then
     "${SYSTEMCTL[@]}" restart "$SERVICE" || "${SYSTEMCTL[@]}" start "$SERVICE" || echo "deploy.sh: could not start $SERVICE" >&2
   fi
@@ -323,6 +352,8 @@ if [[ -L "$CURRENT_LINK" ]]; then
 fi
 
 phase="build"
+[[ "$SERVICE_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "SERVICE_USER must be a simple account name"
+id -u "$SERVICE_USER" >/dev/null 2>&1 || die "service user ${SERVICE_USER} does not exist"
 if [[ -e "$release" ]]; then
   safe_rm_release "$release" || die "cannot replace an existing release at $release"
 fi
@@ -356,6 +387,7 @@ fi
 save_release_env
 write_release_env "$SHA"
 phase="switching"
+own_release "$release" || die "could not chown $release to $SERVICE_USER"
 switch_current "$release" || die "could not switch $CURRENT_LINK"
 switched=1
 phase="switched"

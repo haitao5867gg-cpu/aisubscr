@@ -36,7 +36,7 @@ Do not commit the secret. Leave the placeholders in `.env.example` empty.
 
 ## Local disk
 
-With R2 unset, files are written under `public/uploads/` and the URL is `/uploads/...`. Next serves that directory. nginx does not need a new alias. The middleware skips `/uploads/` so those files can use a public cache header instead of `private, no-store`.
+With R2 unset, files are written under `UPLOADS_DIR` (default `public/uploads/`) and the URL is still `/uploads/...`. `next start` does not serve files added to `public/` after the process starts, so a route handler reads the directory on each request. Filenames are UUIDs and the response is cached as immutable. The middleware skips `/uploads/` so those responses are not marked `private, no-store`. An optional nginx alias is in `docs/DEPLOY.md`.
 
 On the server:
 

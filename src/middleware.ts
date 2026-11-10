@@ -69,8 +69,8 @@ export function middleware(request: NextRequest) {
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("x-request-id", id);
   // HTML carries a per-request nonce and may include a session. Do not let
-  // Cloudflare store it. Hashed /_next/static files are excluded by the matcher
-  // and keep their long Cache-Control from next.config.
+  // Cloudflare store it. Hashed /_next/static files and /uploads images are
+  // excluded by the matcher and keep their public Cache-Control.
   response.headers.set("Cache-Control", "private, no-store");
   response.headers.set("CDN-Cache-Control", "no-store");
   if (https) {
@@ -83,7 +83,7 @@ export const config = {
   matcher: [
     {
       source:
-        "/((?!_next/static|_next/image|uploads/|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest|og.png).*)",
+        "/((?!_next/static|_next/image|uploads/|api/uploads/file/|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest|og.png).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

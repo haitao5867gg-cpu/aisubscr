@@ -101,7 +101,11 @@ sudo bash scripts/deploy.sh --ref origin/main
 | `--repo <path>` | git 检出目录，默认是脚本所在仓库 |
 | `--no-fetch` | 不执行 `git fetch` |
 
-也可以用环境变量改路径：`RELEASES_DIR`、`CURRENT_LINK`、`SHARED_DIR`、`ENV_FILE`、`DB_FILE`、`UPLOADS_DIR`、`SERVICE`、`HEALTH_URL`。
+也可以用环境变量改路径：`RELEASES_DIR`、`CURRENT_LINK`、`SHARED_DIR`、`ENV_FILE`、`DB_FILE`、`UPLOADS_DIR`、`SERVICE`、`SERVICE_USER`（默认 `aisubscr`）、`HEALTH_URL`。
+
+脚本一启动就执行 `umask 022`。这台机器上 root 的 umask 是 `0077`，不改的话新目录是 `0700`、文件是 `0600`，服务用户读不到。构建和迁移都结束后、替换符号链接之前，脚本执行 `chown -RP "$SERVICE_USER:"` 把整个发布目录交给服务用户。`-P` 不跟随符号链接，共享的 `.env`、数据库和 `uploads/` 属主不变。回滚时先对上一版做同样的 `chown`，再把符号链接切回去并重启。否则 Next 写 `.next/cache` 会报 `EACCES`。账号必须已存在，名字只能是普通用户名。
+
+The script sets `umask 022` itself because root's umask is `0077`. It chowns the release to `SERVICE_USER` (default `aisubscr`) after the build and before the symlink switch, and chowns the restored release on rollback, without following symlinks into shared data.
 
 脚本顺序：
 
@@ -110,14 +114,47 @@ sudo bash scripts/deploy.sh --ref origin/main
 3. 把该提交解包到 `/opt/aisubscr-releases/<sha>/`，接上三条符号链接。
 4. 在新目录执行 `npm ci` 和 `npm run build`。这一段旧进程继续监听 3000。
 5. `npx prisma migrate status`。没有待执行迁移时**不**停服务。输出里出现尚未应用的迁移时，才 `systemctl stop`，然后只跑 `npx prisma migrate deploy`。
-6. 原子替换 `/opt/aisubscr-current`，写入 `release.env` 的 `GIT_COMMIT`，`systemctl restart`。
+6. `chown -RP` 把发布目录交给 `SERVICE_USER`。然后原子替换 `/opt/aisubscr-current`，写入 `release.env` 的 `GIT_COMMIT`，`systemctl restart`。
 7. 最多约 30 秒轮询 `GET /api/health`。`ok` 与 `db` 必须为 `true`，且 `commit` 等于这次的提交号。
-8. 健康检查失败：符号链接和 `release.env` 改回上一版并再次重启。迁移本身不会自动回滚（只加列的迁移旧代码仍能读）。
+8. 健康检查失败：先 `chown` 上一版，再把符号链接和 `release.env` 改回去并重启。迁移本身不会自动回滚（只加列的迁移旧代码仍能读）。
 9. 成功后删掉更旧的发布目录，但留下当前和上一版。若某个旧目录里的 `public/uploads` 或数据库是真实文件而不是符号链接，脚本会留下它并打印原因。
 
 非 root 运行时用 `sudo -n systemctl`，需要免密 sudo。同一时间第二份 `deploy.sh` 会因为锁文件退出。
 
-构建失败、迁移失败时，若服务曾被停下，脚本会把它拉起来并保持旧的符号链接。
+构建失败、迁移失败时，若服务曾被停下，脚本会把它拉起来并保持旧的符号链接。回滚路径里同样会先 `chown` 正在恢复的那一版。
+
+## 上传文件 / Uploads
+
+`next start` 在启动时记下 `public/` 里已经存在的文件。进程起来之后才放进 `public/uploads` 的图片不在这份清单里，商品图和客服二维码会 404，直到下次部署重启。浏览器里的地址仍然是 `/uploads/...`。`next.config` 在查找静态文件之前把这个路径改写到 `app/api/uploads/file/[...path]/route.ts`，由路由按请求从磁盘读出并流式返回。
+
+目录来自环境变量 `UPLOADS_DIR`，默认 `public/uploads`。生产里这是指向 `/opt/aisubscr-shared/uploads` 的符号链接，所以不设置变量也能读到共享目录。要写绝对路径时，放进 `/opt/aisubscr-shared/.env`：
+
+```
+UPLOADS_DIR=/opt/aisubscr-shared/uploads
+```
+
+这和 `deploy.sh` 用来接符号链接的 `UPLOADS_DIR` 是同一个路径。应用在运行时读取，不需要为了改这个目录重新构建。
+
+路由拒绝 `..`、反斜杠、空字节、编码后的路径穿越，以及指向目录外的符号链接。只提供 `.webp`、`.png`、`.jpg`、`.jpeg`、`.gif`。`Content-Type` 按扩展名设置，并带 `X-Content-Type-Options: nosniff`。上传文件名是 `products/<uuid>.webp`、`contact-qr/<uuid>.webp` 或 `tickets/<uuid>.webp`（UUID，不是内容哈希），同一个 URL 不会改内容，因此缓存为：
+
+```
+Cache-Control: public, max-age=31536000, immutable
+```
+
+`/uploads/` 不经过中间件，避免被标成 `private, no-store`。
+
+可选：让 nginx 直接读共享目录，少一次 Node 转发。不写这段时，上面的路由仍然生效，现有 `/uploads/...` 地址不用改。服务单元的 `UMask=0077` 会把新文件写成 `0600`，属主是 `aisubscr`，Node 进程读得到，nginx 的用户默认读不到。要用别名，先给 nginx 用户读权限（例如 ACL）。
+
+```nginx
+location /uploads/ {
+    alias /opt/aisubscr-shared/uploads/;
+    autoindex off;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+}
+```
+
+`next start` remembers the `public/` files that existed at process start. Images saved after that 404 until the next restart. The app rewrites `/uploads/...` to a route that streams from `UPLOADS_DIR` (default `public/uploads`) with traversal checks, image extensions only, a matching `Content-Type`, `nosniff`, and an immutable cache. Names are unique UUIDs. The nginx `alias` above is an optional faster path.
 
 ## 不要做的事 / Do not
 
