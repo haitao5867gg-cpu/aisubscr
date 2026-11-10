@@ -21,13 +21,16 @@ export function nextIp() {
 
 export function jsonRequest(
   pathname: string,
-  opts: { method?: string; body?: unknown; ip?: string } = {},
+  opts: { method?: string; body?: unknown; ip?: string; headers?: Record<string, string> } = {},
 ) {
   const ip = opts.ip ?? nextIp();
   const method = opts.method ?? (opts.body === undefined ? "GET" : "POST");
   const headers = new Headers();
   headers.set("x-real-ip", ip);
   headers.set("x-request-id", `testreq-${ip.replaceAll(".", "")}`);
+  if (opts.headers) {
+    for (const [key, value] of Object.entries(opts.headers)) headers.set(key, value);
+  }
   if (opts.body !== undefined) headers.set("content-type", "application/json");
   return new NextRequest(`http://127.0.0.1${pathname}`, {
     method,

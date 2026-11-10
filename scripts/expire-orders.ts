@@ -1,3 +1,4 @@
+import { purgeAnalytics } from "../src/lib/analytics";
 import { ensureSqlitePragmas, prisma } from "../src/lib/db";
 import { expireDueOrders } from "../src/lib/order-expiry";
 
@@ -6,7 +7,8 @@ import { expireDueOrders } from "../src/lib/order-expiry";
 async function main() {
   await ensureSqlitePragmas();
   const result = await expireDueOrders();
-  console.log(JSON.stringify({ ok: true, ...result }));
+  const analytics = await purgeAnalytics();
+  console.log(JSON.stringify({ ok: true, ...result, analytics }));
 }
 
 main()

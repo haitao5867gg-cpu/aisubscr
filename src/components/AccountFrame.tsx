@@ -21,7 +21,7 @@ export async function AccountFrame({
     <div className="account-grid">
       <nav className="card side-nav" aria-label={zh.nav.account}>
         {items.map((item) => (
-          <Link key={item.id} href={item.href} className={item.id === current ? "active" : ""}>
+          <Link key={item.id} href={item.href} className={item.id === current ? "active" : ""} aria-current={item.id === current ? "page" : undefined}>
             {item.label}
           </Link>
         ))}

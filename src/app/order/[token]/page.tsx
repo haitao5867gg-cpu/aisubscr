@@ -9,11 +9,13 @@ import { OrderTimeline } from "@/components/OrderTimeline";
 import { OrderSummary } from "@/components/OrderSummary";
 import { SupportFab } from "@/components/SupportFab";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TicketImages } from "@/components/TicketImages";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { OrderCountdown } from "@/components/OrderCountdown";
 import { expireDueOrders } from "@/lib/order-expiry";
+import { customerReplies } from "@/lib/tickets";
 import { pageMeta } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +36,7 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
       items: true,
       tickets: {
         orderBy: { createdAt: "desc" },
-        include: { replies: { orderBy: { createdAt: "asc" } } },
+        include: { replies: customerReplies },
       },
     },
   });
@@ -101,6 +103,7 @@ export default async function PublicOrderPage({ params }: { params: Promise<{ to
                     {ticket.replies.map((reply) => (
                       <div key={reply.id} style={{ marginTop: "0.45rem", fontSize: "0.92rem" }}>
                         <span className="badge badge-example">{reply.isStaff ? zh.shop.staff : zh.shop.customer}</span> {reply.body}
+                        <TicketImages items={reply.attachments} alt={zh.ticket.attachmentAlt} />
                       </div>
                     ))}
                   </div>

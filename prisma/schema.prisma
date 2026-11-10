@@ -27,7 +27,8 @@ model User {
   totpLastStep   Int?
   orders         Order[]
   totpRecoveryCodes TotpRecoveryCode[]
-  tickets        Ticket[]
+  tickets        Ticket[]       @relation("TicketOwner")
+  assignedTickets Ticket[]      @relation("TicketAssignee")
   ticketReplies  TicketReply[]
   passwordResetCode PasswordResetCode?
   emailChangeCode EmailChangeCode?
@@ -154,27 +155,50 @@ model OrderItem {
 }
 
 model Ticket {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  subject   String
-  status    String   @default("OPEN") // OPEN | REPLIED | CLOSED
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  replies   TicketReply[]
+  id         String    @id @default(cuid())
+  /// Optional. The order must belong to the same user when it is set.
+  orderId    String?
+  order      Order?    @relation(fields: [orderId], references: [id])
+  userId     String
+  user       User      @relation("TicketOwner", fields: [userId], references: [id])
+  subject    String
+  /// order | billing | account | technical | other
+  category   String    @default("other")
+  /// OPEN | WAITING_CUSTOMER | RESOLVED | CLOSED
+  status     String    @default("OPEN")
+  assigneeId String?
+  assignee   User?     @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  replies    TicketReply[]
+
+  @@index([userId, updatedAt])
+  @@index([status, updatedAt])
+  @@index([assigneeId, status])
 }
 
 model TicketReply {
-  id        String   @id @default(cuid())
-  ticketId  String
-  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  body      String
-  isStaff   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          String             @id @default(cuid())
+  ticketId    String
+  ticket      Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User               @relation(fields: [userId], references: [id])
+  body        String
+  isStaff     Boolean            @default(false)
+  /// Staff-only. Hidden from the customer, the public order page, and reply email.
+  internal    Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  attachments TicketAttachment[]
+}
+
+model TicketAttachment {
+  id        String      @id @default(cuid())
+  replyId   String
+  reply     TicketReply @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  url       String
+  createdAt DateTime    @default(now())
+
+  @@index([replyId])
 }
 
 /// One pending email-change code per user. The code is stored hashed.
@@ -229,7 +253,40 @@ model SiteSetting {
   announcementEnabled  Boolean  @default(false)
   /// Minutes before an unpaid order expires. Ignored when ORDER_EXPIRE_MINUTES is set.
   orderExpireMinutes   Int      @default(30)
+  /// Empty means paid-order and new-ticket notices are not sent.
+  adminNotifyEmail     String   @default("")
+  notifyPaidOrders     Boolean  @default(true)
+  notifyNewTickets     Boolean  @default(true)
   updatedAt            DateTime @updatedAt
+}
+
+/// First-party page view. The visitor id is a daily HMAC. Raw IPs are not stored.
+model PageView {
+  id          String   @id @default(cuid())
+  path        String
+  /// Referrer hostname only. Empty when the visit is direct or same-site.
+  referrer    String   @default("")
+  /// mobile | tablet | desktop
+  device      String
+  visitorHash String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([visitorHash, path, createdAt])
+}
+
+/// Checkout and paid steps. Product views and cart views are counted from PageView.
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  /// checkout | paid
+  kind        String
+  visitorHash String
+  orderId     String   @default("")
+  createdAt   DateTime @default(now())
+
+  @@index([kind, createdAt])
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 /// Promo code. Usage is reserved in the same transaction that creates the order.

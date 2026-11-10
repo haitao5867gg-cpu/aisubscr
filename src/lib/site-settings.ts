@@ -20,6 +20,9 @@ export type SettingsRow = {
   announcementText: string;
   announcementEnabled: boolean;
   orderExpireMinutes: number;
+  adminNotifyEmail: string;
+  notifyPaidOrders: boolean;
+  notifyNewTickets: boolean;
 };
 
 /** JSON shape for admin and public settings. Image bytes stay in the database. */
@@ -38,6 +41,16 @@ export function settingsView(row: SettingsRow) {
     announcementText: row.announcementText,
     announcementEnabled: row.announcementEnabled,
     orderExpireMinutes: row.orderExpireMinutes,
+  };
+}
+
+/** Admin settings include the notification address. The public JSON does not. */
+export function adminSettingsView(row: SettingsRow) {
+  return {
+    ...settingsView(row),
+    adminNotifyEmail: row.adminNotifyEmail,
+    notifyPaidOrders: row.notifyPaidOrders,
+    notifyNewTickets: row.notifyNewTickets,
   };
 }
 

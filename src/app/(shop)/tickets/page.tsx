@@ -17,32 +17,45 @@ export async function generateMetadata(): Promise<Metadata> {
   return pageMeta({ title: t.seo.ticketsTitle, description: t.seo.ticketsDescription, path: "/tickets", index: false });
 }
 
+function categoryLabel(t: ReturnType<typeof getDict>, category: string) {
+  const labels = t.ticket.categories as Record<string, string>;
+  return labels[category] || category;
+}
+
 export default async function TicketsPage() {
   const zh = getDict(await getLocale());
   const session = await getSession();
   if (!session.isLoggedIn || !session.userId) redirect("/login?next=/tickets");
   const tickets = await prisma.ticket.findMany({
     where: { userId: session.userId },
-    include: { order: true },
-    orderBy: { createdAt: "desc" },
+    include: { order: { select: { orderNo: true } } },
+    orderBy: { updatedAt: "desc" },
   });
   return (
     <AccountFrame current="tickets">
-      <div>
-        <h1 className="page-title">{zh.ticket.title}</h1>
-        <p className="page-desc">{zh.shop.noTickets}</p>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <div>
+          <h1 className="page-title">{zh.ticket.title}</h1>
+          <p className="page-desc">{zh.ticket.lead}</p>
+        </div>
+        <Link href="/tickets/new" className="btn btn-primary">{zh.ticket.newTicket}</Link>
       </div>
-      {!tickets.length && <EmptyState title={zh.shop.noTickets} href="/orders" action={zh.nav.orders} />}
-      {tickets.length > 0 && <div className="card">
-        {tickets.map((ticket) => (
-          <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="ledger-row">
-            <strong>{ticket.subject}</strong>
-            <span className="muted">{zh.shop.orderRef} {ticket.order.orderNo}</span>
-            <span className="muted">{ticket.createdAt.toISOString().slice(0, 10)}</span>
-            <StatusBadge status={ticket.status} kind="ticket" />
-          </Link>
-        ))}
-      </div>}
+      {!tickets.length && <EmptyState title={zh.shop.noTickets} href="/tickets/new" action={zh.ticket.newTicket} />}
+      {tickets.length > 0 && (
+        <div className="card">
+          {tickets.map((ticket) => (
+            <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="ledger-row">
+              <strong>{ticket.subject}</strong>
+              <span className="muted">
+                {categoryLabel(zh, ticket.category)}
+                {ticket.order ? ` · ${zh.shop.orderRef} ${ticket.order.orderNo}` : ""}
+              </span>
+              <time className="muted" dateTime={ticket.updatedAt.toISOString()}>{ticket.updatedAt.toISOString().slice(0, 10)}</time>
+              <StatusBadge status={ticket.status} kind="ticket" />
+            </Link>
+          ))}
+        </div>
+      )}
     </AccountFrame>
   );
 }

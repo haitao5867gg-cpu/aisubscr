@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getDict } from "@/i18n";
 import { getLocale } from "@/i18n/server";
-import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/session";
+import { customerReplies, customerTicket } from "@/lib/tickets";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const t = getDict(await getLocale());
@@ -13,11 +14,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   }
   const ticket = await prisma.ticket.findFirst({
     where: { id, userId: session.userId },
-    include: {
-      order: true,
-      replies: { orderBy: { createdAt: "asc" }, include: { user: { select: { name: true, email: true, role: true } } } },
-    },
+    include: { order: { select: { id: true, orderNo: true } }, replies: customerReplies },
   });
   if (!ticket) return NextResponse.json({ error: t.api.ticketMissing }, { status: 404 });
-  return NextResponse.json({ ticket });
+  return NextResponse.json({ ticket: customerTicket(ticket) });
 }

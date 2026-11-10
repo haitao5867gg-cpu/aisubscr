@@ -103,13 +103,15 @@ export default async function AccountPage() {
             {zh.shop.viewAll}
           </Link>
         </div>
-        {!tickets.length && <EmptyState title={zh.shop.noTickets} href="/orders" action={zh.nav.orders} />}
+        {!tickets.length && <EmptyState title={zh.shop.noTickets} href="/tickets/new" action={zh.ticket.newTicket} />}
         {tickets.length > 0 && (
           <div className="card">
             {tickets.map((ticket) => (
               <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="ledger-row">
                 <strong>{ticket.subject}</strong>
-                <span className="muted">{zh.shop.orderRef} {ticket.order.orderNo}</span>
+                <span className="muted">
+                  {ticket.order ? `${zh.shop.orderRef} ${ticket.order.orderNo}` : zh.ticket.categories[ticket.category as keyof typeof zh.ticket.categories]}
+                </span>
                 <span />
                 <StatusBadge status={ticket.status} kind="ticket" />
               </Link>

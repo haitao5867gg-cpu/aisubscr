@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { readR2Config, type R2Config } from "./r2-config";
 
-const KEY = /^(products|contact-qr)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
+const KEY = /^(products|contact-qr|tickets)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.webp$/;
 
 export function uploadsRoot() {
   return path.join(process.cwd(), "public", "uploads");
